@@ -21,7 +21,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
 
     public static int PORT = 60000;
-    public static final String HOST = "192.168.6.20";
+    public static final String HOST = "192.168.1.120";
 
 
     private SocketClient socketClient;
@@ -41,7 +41,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         socketClient = new SocketClient.Builder()
                 .setHost(HOST)
                 .setPort(PORT)
-                .setHeartBeatInterval(1000 * 3)
+                .setHeartBeatInterval(1000 * 10)
                 .setHeartPacketData(new SocketClient.PacketData("0000".getBytes()))
                 .setAllocateBuffer(8).build();
 

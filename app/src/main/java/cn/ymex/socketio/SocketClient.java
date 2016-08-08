@@ -36,6 +36,9 @@ public class SocketClient implements Runnable {
 
     private int currentStatus = Status.CONNECT_PREPARE;
 
+    public int getCurrentStatus() {
+        return currentStatus;
+    }
 
     /**
      * socket 是否连接
@@ -320,6 +323,7 @@ public class SocketClient implements Runnable {
                                 }
                                 ByteBuffer buffer = ByteBuffer.allocate(allocateBuffer);
                                 int len = channel.read(buffer);
+                                L.d(";;;;;;;;;;;;;;;--: "+len);
                                 buffer.flip();
                                 if (len > 0) {
                                     dis = false;
@@ -410,12 +414,6 @@ public class SocketClient implements Runnable {
          * @param datas
          */
         private void deal(byte[] datas) {
-            for (byte b : datas) {
-                System.out.println("------------------::"+b);
-                if (b == 0x13) {
-
-                }
-            }
             callback(datas);
         }
 
@@ -529,7 +527,6 @@ public class SocketClient implements Runnable {
 
     private class HeartbeatRunnable implements Runnable {
         private boolean stop = false;
-
         public HeartbeatRunnable(PacketData packetData) {
             this.heartPackDate = packetData;
         }
@@ -553,6 +550,10 @@ public class SocketClient implements Runnable {
             try {
                 while (!isStop()) {
                     Thread.sleep(socketConfig.getHeartBeatInterval());
+                    if (getCurrentStatus() != Status.CONNECT_SUCCESS) {
+                        System.out.println("if (getCurrentStatus() == Status.CONNECT_SUCCESS) {");
+                        continue;
+                    }
                     post(heartPackDate);
                 }
             } catch (InterruptedException e) {
