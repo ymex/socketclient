@@ -9,6 +9,7 @@ import android.widget.TextView;
 
 import java.io.IOException;
 
+import cn.ymex.cute.log.L;
 import cn.ymex.socketio.R;
 import cn.ymex.socketio.SocketClient;
 
@@ -20,7 +21,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
 
     public static int PORT = 60000;
-    public static final String HOST = "192.168.1.120";
+    public static final String HOST = "192.168.6.20";
 
 
     private SocketClient socketClient;
@@ -33,32 +34,43 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         initTcp();
     }
 
-    private void initTcp(){
-        if (socketClient != null){
+    private void initTcp() {
+        if (socketClient != null) {
             return;
         }
         socketClient = new SocketClient.Builder()
                 .setHost(HOST)
                 .setPort(PORT)
-                .setHeartBeatInterval(1000*3)
+                .setHeartBeatInterval(1000 * 3)
                 .setHeartPacketData(new SocketClient.PacketData("0000".getBytes()))
                 .setAllocateBuffer(8).build();
 
         socketClient.setOnReceiveListener(onReceiveListener);
         socketClient.setOnConnectListener(new SocketClient.OnConnectListener() {
-            @Override
-            public void onConnected() {
 
+            @Override
+            public void connectPrepare() {
+                L.d("connectPrepare");
             }
 
             @Override
-            public void onDisconnected() {
-                System.out.println("onDisconnected");
+            public void connectWaiting() {
+                L.d("connectWaiting");
             }
 
             @Override
-            public void onConnectError() {
-                System.out.println("onConnectError");
+            public void connectSuccess() {
+                L.d("connectSuccess");
+            }
+
+            @Override
+            public void connectBreak() {
+                L.d("connectBreak");
+            }
+
+            @Override
+            public void connectFailed() {
+                L.d("connectFailed");
             }
         });
     }
@@ -68,7 +80,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         @Override
         public void receive(SocketClient.ResponsePacketData result) {
             String message = new String(result.untieData());
-            System.out.println(";;----::"+message);
+            L.d(message);
             tv_msg.setText(message);
         }
     };
@@ -82,7 +94,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         socketClient.post(new SocketClient.PacketData(text.getBytes()));
     }
 
-    private void initView(){
+    private void initView() {
         tv_msg = (TextView) findViewById(R.id.tv_text);
         ed_msg = (EditText) findViewById(R.id.et_edit);
         btn_send = (Button) findViewById(R.id.btn_send);
