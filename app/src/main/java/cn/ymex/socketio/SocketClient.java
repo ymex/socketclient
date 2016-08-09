@@ -18,69 +18,354 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 import cn.ymex.cute.log.L;
 
-/**
- * Created by ymexc on 2016/8/5.
- */
-public class SocketClient implements Runnable {
-
-
-    private SocketConfig socketConfig;
-
-    private PostDataRunnable postDataRunnable;
-    private ReceiveDataRunnable receiveDataRunnable;
-    private HeartbeatRunnable heartbeatRunnable;
-
-    private DealHander dealHander = null;
-    private SocketChannel channel = null;
+public class SocketClient {
+    private SocketClient client = this;
+    private ClientConfig clientConfig;
+    private SocketChannel socketChannel = null;
     private Selector selector = null;
 
     private int currentStatus = Status.CONNECT_PREPARE;
 
-    public int getCurrentStatus() {
-        return currentStatus;
+
+    public ClientConfig getClientConfig() {
+        return clientConfig;
+    }
+
+    public SocketClient() {
+    }
+
+
+    /**
+     * 连接到服务器
+     *
+     * @param config
+     */
+    public void connect(ClientConfig config) {
+        if (this.currentStatus == Status.CONNECT_SUCCESS
+                || this.currentStatus == Status.CONNECT_WAITING) {
+            L.w("socket is already runing...");
+            return;
+        }
+        checkNull(config, "socket config is null");
+        this.clientConfig = config;
+        obtionConnectThread().start();
     }
 
     /**
-     * socket 是否连接
+     * 发送一条信息
      *
-     * @return
+     * @param packetDate
      */
-    public boolean isConnected() {
-        if (channel == null) {
-            return false;
+    public void send(PacketData packetDate) {
+        if (obtionPostDataThread() == null || !obtionPostDataThread().isAlive()) {
+            System.out.println("PostDataThread  is null or PostDataThread is stop ");
+            return;
         }
-        return channel.isConnected();//&& receiveDataRunnable.isConnected();
+        checkNull(packetDate, "postData is null");
+        obtionPostDataThread().put(packetDate);
     }
 
-    public void reConnect() {
-        if (postDataRunnable.isStop()) {
-            new Thread(postDataRunnable).start();
+    /**
+     * 关闭socketclient
+     */
+    public void close() {
+
+    }
+
+    /**
+     * 连接 socket
+     *
+     * @param host
+     * @param port
+     * @throws IOException
+     */
+    private SocketChannel _connect(String host, int port, int timeout) throws IOException {
+        SocketChannel channel = SocketChannel.open();
+        channel.socket().setTcpNoDelay(false);
+        channel.socket().setKeepAlive(true);
+        channel.socket().setSoTimeout(timeout);
+        channel.configureBlocking(false);
+        channel.connect(new InetSocketAddress(host, port));
+        return channel;
+    }
+
+    private Selector regConnectSelector(SocketChannel channel) throws IOException {
+        Selector selector = Selector.open();
+        channel.register(selector, SelectionKey.OP_READ);
+        return selector;
+    }
+
+
+    private ConnectThread connectThread = null;
+
+    private ConnectThread obtionConnectThread() {
+        if (isNull(this.connectThread)) {
+            this.connectThread = new ConnectThread();
         }
-        if (receiveDataRunnable.isStop()) {
-            new Thread(receiveDataRunnable).start();
-        }
-        try {
-            close();
-            new Thread(this).start();
-        } catch (IOException e) {
-            e.printStackTrace();
+        return this.connectThread;
+    }
+
+    private class ConnectThread extends Thread {
+        @Override
+        public void run() {
+            super.run();
+            try {
+                client.sendHandleMessage(Status.CONNECT_WAITING);
+                client.socketChannel = client._connect(
+                        client.clientConfig.getHost(),
+                        client.clientConfig.getPort(),
+                        client.clientConfig.getSoTimeout());
+                client.selector = regConnectSelector(client.socketChannel);
+
+                while (true) {
+                    if (client.socketChannel.finishConnect()) {
+                        client.sendHandleMessage(Status.CONNECT_SUCCESS);
+                        break;
+                    }
+                    client.sendHandleMessage(Status.CONNECT_WAITING);
+                }
+            } catch (IOException e) {
+                client.sendHandleMessage(Status.CONNECT_FAILED);
+            }
         }
     }
 
-    private DealHander getDealHander() {
-        if (dealHander == null) {
-            dealHander = new DealHander(this);
+    private PostDataThread postDataThread = null;
+
+    private PostDataThread obtionPostDataThread() {
+        if (isNull(this.postDataThread)) {
+            this.postDataThread = new PostDataThread();
         }
-        return dealHander;
+        return postDataThread;
     }
 
-    public static class SocketConfig {
+    private class PostDataThread extends Thread {
+        private boolean stop = false;
+        private LinkedBlockingQueue<PacketData> messageQueue;
+
+        public boolean isStop() {
+            return stop;
+        }
+
+        public void setStop(boolean stop) {
+            this.stop = stop;
+        }
+
+        private LinkedBlockingQueue<PacketData> obainQueue() {
+            if (null == this.messageQueue) {
+                this.messageQueue = new LinkedBlockingQueue<>();
+            }
+            return this.messageQueue;
+        }
+
+        /**
+         * 发送信息
+         *
+         * @param data
+         */
+        public void put(PacketData data) {
+            obainQueue().offer(data);
+        }
+
+        @Override
+        public void run() {
+            while (!isStop()) {
+                if (this.obainQueue().size() <= 0) {
+                    continue;
+                }
+                PacketData packetData = this.obainQueue().poll();
+                if (packetData == null) {
+                    continue;
+                }
+                if (client.socketChannel.isConnected() && client.socketChannel.isOpen()) {
+                    this._send(packetData);
+                }
+            }
+        }
+
+        private void _send(PacketData packetData) {
+            if (client.socketChannel == null) {
+                System.out.println("post out is null ");
+                return;
+            }
+
+            try {
+
+                if (!client.socketChannel.isConnected()
+                        || !client.socketChannel.finishConnect()
+                        || !client.socketChannel.socket().isConnected() ||
+                        client.socketChannel.socket().isClosed()) {
+                    System.out.println("socket not connect or close ");
+                    return;
+                }
+                ByteBuffer buffer = ByteBuffer.wrap(packetData.warpData());
+                client.socketChannel.write(buffer);
+            } catch (IOException e) {
+                e.printStackTrace();
+                L.e(e.getMessage());
+            }
+        }
+    }
+
+    private void sendHandleMessage(int what) {
+        sendHandleMessage(what, null);
+    }
+
+    /**
+     * 向EventBusHandler 发送事件
+     *
+     * @param what
+     * @param obj
+     */
+    private void sendHandleMessage(int what, Object obj) {
+
+        Message message = this.obtianEventBusHandler().obtainMessage();
+        message.what = what;
+        if (!isNull(obj)) {
+            message.obj = obj;
+        }
+        message.sendToTarget();
+    }
+
+    private EventBusHandler eventBusHandler = null;
+
+    public EventBusHandler obtianEventBusHandler() {
+        if (isNull(this.eventBusHandler)) {
+            this.eventBusHandler = new EventBusHandler(this);
+        }
+        return eventBusHandler;
+    }
+
+    private static class EventBusHandler extends Handler {
+        private static final int HEART_MESSAGE = 0x77;
+        private static final int DATA_MESSAGE = 0x88;
+
+
+        private WeakReference<SocketClient> referenceTcpClient = null;
+
+        public EventBusHandler(SocketClient socketClient) {
+            super(Looper.getMainLooper());
+            referenceTcpClient = new WeakReference<SocketClient>(socketClient);
+        }
+
+        @Override
+        public void handleMessage(Message msg) {
+            super.handleMessage(msg);
+            if (this.referenceTcpClient == null || referenceTcpClient.get() == null) {
+                return;
+            }
+            switch (msg.what) {
+                case HEART_MESSAGE://心跳包
+                    referenceTcpClient.get().messageOnHeartbeat();
+                    break;
+                case DATA_MESSAGE://数据包
+                    referenceTcpClient.get().messageOnReceiveData((ResponsePacketData) msg.obj);
+                    break;
+                case Status.CONNECT_PREPARE:
+                    referenceTcpClient.get().messageOnConnectPrepare();
+                    break;
+                case Status.CONNECT_WAITING:
+                    referenceTcpClient.get().messageOnConnectWaiting();
+                    break;
+                case Status.CONNECT_SUCCESS:
+                    referenceTcpClient.get().messageOnConnectSuccess();
+                    break;
+                case Status.CONNECT_FAILED:
+                    referenceTcpClient.get().messageConnectFailed();
+                    break;
+                case Status.CONNECT_BREAK:
+                    referenceTcpClient.get().messageConnectBreak();
+                    break;
+            }
+        }
+    }
+
+    private void messageOnHeartbeat() {
+
+    }
+
+    private void messageOnReceiveData(ResponsePacketData responsePacketData) {
+        if (this.onReceiveListeners != null && this.onReceiveListeners.size() > 0) {
+            for (OnReceiveListener onrec : this.onReceiveListeners) {
+                if (onrec != null) {
+                    onrec.receive(responsePacketData);
+                }
+            }
+        }
+    }
+
+    private void messageOnConnectPrepare() {
+        this.currentStatus = Status.CONNECT_PREPARE;
+        if (!isNull(this.onConnectListener)) {
+            this.onConnectListener.connectPrepare();
+        }
+    }
+
+    private void messageOnConnectWaiting() {
+        this.currentStatus = Status.CONNECT_WAITING;
+        if (!isNull(this.onConnectListener)) {
+            this.onConnectListener.connectWaiting();
+        }
+    }
+
+    private void messageOnConnectSuccess() {
+        this.currentStatus = Status.CONNECT_SUCCESS;
+
+        this.obtainDealReceiveDataThread().start();
+        this.obtainReceiveDataThread().start();
+        this.obtionPostDataThread().start();
+        if (!isNull(this.clientConfig.getHeartbeatPacketData())) {
+            this.obtainHeartbeatThread().start();
+        }
+
+        if (!isNull(this.onConnectListener)) {
+            this.onConnectListener.connectSuccess();
+        }
+    }
+
+
+    private void messageConnectBreak() {
+        this.currentStatus = Status.CONNECT_BREAK;
+        if (!isNull(this.onConnectListener)) {
+            this.onConnectListener.connectBreak();
+        }
+    }
+
+    private void messageConnectFailed() {
+        this.currentStatus = Status.CONNECT_FAILED;
+        if (!isNull(this.onConnectListener)) {
+            this.onConnectListener.connectFailed();
+        }
+        //关闭 操作
+    }
+
+    public static class Status {//socketclient 状态
+        public static final int CONNECT_PREPARE = 0x11; //socket开始连接
+        public static final int CONNECT_WAITING = 0x22; //socket 连接中
+        public static final int CONNECT_SUCCESS = 0x33;//socket 连接成功
+        public static final int CONNECT_BREAK = 0x44;//socket 连接断开
+        public static final int CONNECT_FAILED = 0x55; //socket 连接失败
+    }
+
+    /**
+     * socket 配置
+     */
+    public static class ClientConfig {
         private String host;
         private int port;
         private PacketData heartbeatPacketData;
         private long heartBeatInterval = 30 * 1000;
         private int soTimeout = 1 * 1000;
         private int allocateBuffer = 512;
+
+        public ClientConfig() {
+
+        }
+
+        public ClientConfig(String host, int port) {
+            this.host = host;
+            this.port = port;
+        }
 
         public int getAllocateBuffer() {
             return allocateBuffer;
@@ -132,12 +417,52 @@ public class SocketClient implements Runnable {
 
     }
 
+    /**
+     * 检查对象是否为空，为空抛出 NullPointerException
+     *
+     * @param notice
+     * @param t
+     * @param <T>
+     * @return
+     */
+    private <T> T checkNull(T t, String notice) {
+        if (null == t) {
+            throw new NullPointerException(notice == null ? "" : notice);
+        }
+        return t;
+    }
+
+    /**
+     * 检查对象是否为空，为空抛出 NullPointerException
+     *
+     * @param t
+     * @param <T>
+     * @return
+     */
+    private <T> T checkNull(T t) {
+        return checkNull(t, null);
+    }
+
+    /**
+     * 判断对象是否为空
+     *
+     * @param t
+     * @param <T>
+     * @return
+     */
+    private <T> boolean isNull(T t) {
+        if (null == t) {
+            return true;
+        }
+        return false;
+    }
+
     public static class Builder {
         SocketClient socketClient = null;
-        SocketConfig config;
+        ClientConfig config;
 
         public Builder() {
-            config = new SocketConfig();
+            config = new ClientConfig();
         }
 
         public Builder setHost(String host) {
@@ -173,129 +498,25 @@ public class SocketClient implements Runnable {
 
         public SocketClient build() {
             if (socketClient == null) {
-                socketClient = new SocketClient(config);
+                socketClient = new SocketClient();
             }
             return socketClient;
         }
 
     }
 
-    private SocketClient(SocketConfig config) {
-        this.socketConfig = config;
-        new Thread(this).start();
+    private ReceiveDataThread receiveDataThread;
+
+    public ReceiveDataThread obtainReceiveDataThread() {
+        if (isNull(this.receiveDataThread)) {
+            this.receiveDataThread = new ReceiveDataThread();
+        }
+        return receiveDataThread;
     }
 
+    private class ReceiveDataThread extends Thread {
 
-    public void close() throws IOException {
-        if (channel != null) {
-            channel.close();
-        }
-        if (selector != null) {
-            channel.close();
-        }
-        if (receiveDataRunnable != null) {
-            receiveDataRunnable.setStop(true);
-        }
-        if (postDataRunnable != null) {
-            postDataRunnable.setStop(true);
-        }
-        if (heartbeatRunnable != null) {
-            heartbeatRunnable.setStop(true);
-        }
-    }
-
-    public static class Status {
-        public static final int CONNECT_PREPARE = 0x11; //socket开始连接
-        public static final int CONNECT_WAITING = 0x22; //socket 连接中
-        public static final int CONNECT_SUCCESS = 0x33;//socket 连接成功
-        public static final int CONNECT_BREAK = 0x44;//socket 连接断开
-        public static final int CONNECT_FAILED = 0x55; //socket 连接失败
-    }
-
-    @Override
-    public void run() {
-
-        try {
-            channel = configConnect(socketConfig.getHost(), socketConfig.getPort());
-            selector = obtainSelecter(channel);
-
-            receiveDataRunnable = new ReceiveDataRunnable(selector, getDealHander());
-            receiveDataRunnable.setAllocateBuffer(socketConfig.getAllocateBuffer());
-            postDataRunnable = new PostDataRunnable(channel);
-
-            new Thread(receiveDataRunnable).start();
-            new Thread(postDataRunnable).start();
-            if (socketConfig.getHeartbeatPacketData() != null) {
-                heartbeatRunnable = new HeartbeatRunnable(socketConfig.getHeartbeatPacketData());
-                new Thread(heartbeatRunnable).start();
-            }
-            while (true) {
-                if (channel.finishConnect()) {
-                    currentStatus = Status.CONNECT_SUCCESS;
-                    break;
-                }
-                currentStatus = Status.CONNECT_WAITING;
-            }
-        } catch (IOException e) {
-            try {
-                if (selector != null) {
-                    selector.close();
-                }
-                if (channel != null) {
-                    channel.close();
-                }
-            } catch (IOException e1) {
-                e1.printStackTrace();
-            }
-            currentStatus = Status.CONNECT_FAILED;
-            DealHander.sendMessage(getDealHander(), Status.CONNECT_FAILED, null);
-        }
-    }
-
-    private Selector obtainSelecter(SocketChannel channel) throws IOException {
-        if (channel == null) {
-            throw new IOException("channel is null");
-        }
-        Selector selector = Selector.open();
-        if (selector != null) {
-            channel.register(selector, SelectionKey.OP_READ);
-        } else {
-            throw new IOException("selector is null");
-        }
-
-        return selector;
-    }
-
-    private SocketChannel configConnect(String host, int port) throws IOException {
-        SocketChannel socketChannel = SocketChannel.open();
-        socketChannel.socket().setTcpNoDelay(false);
-        socketChannel.socket().setKeepAlive(true);
-        socketChannel.socket().setSoTimeout(socketConfig.getSoTimeout());
-        socketChannel.configureBlocking(false);
-        socketChannel.connect(new InetSocketAddress(host, port));
-        return socketChannel;
-    }
-
-
-    private class ReceiveDataRunnable implements Runnable {
-
-        private Selector selector;
         private boolean stop = false;
-        private DealMessageRunable messageRunable;
-        private int allocateBuffer = 512;
-        private Handler handler;
-
-        public ReceiveDataRunnable(Selector selector, DealHander dealHander) {
-            this.selector = selector;
-            this.messageRunable = new DealMessageRunable();
-            this.handler = dealHander;
-            new Thread(messageRunable).start();
-        }
-
-
-        public void setAllocateBuffer(int allocateBuffer) {
-            this.allocateBuffer = allocateBuffer;
-        }
 
         public boolean isStop() {
             return stop;
@@ -308,10 +529,10 @@ public class SocketClient implements Runnable {
         @Override
         public void run() {
             boolean dis = true;
-            List<Byte> tempList = new ArrayList<>(allocateBuffer);
+            List<Byte> tempList = new ArrayList<>(client.clientConfig.getAllocateBuffer());
             while (!isStop()) {
                 try {
-                    if (!selector.isOpen()) {
+                    if (isNull(client.selector) || !client.selector.isOpen()) {
                         continue;
                     }
                     while (selector.select() > 0) {
@@ -321,9 +542,9 @@ public class SocketClient implements Runnable {
                                 if (!channel.isConnected()) {
                                     continue;
                                 }
-                                ByteBuffer buffer = ByteBuffer.allocate(allocateBuffer);
+                                ByteBuffer buffer = ByteBuffer.allocate(client.clientConfig.getAllocateBuffer());
                                 int len = channel.read(buffer);
-                                L.d(";;;;;;;;;;;;;;;--: "+len);
+                                L.d(";;;;;;;;;;;;;;;--: " + len);
                                 buffer.flip();
                                 if (len > 0) {
                                     dis = false;
@@ -332,13 +553,13 @@ public class SocketClient implements Runnable {
                                         tempList.add(buffer.get());
                                     }
                                     byte[] dates = new byte[tempList.size()];
-                                    for (int i = 0; i<dates.length; i++){
-                                        dates[i]=tempList.get(i);
+                                    for (int i = 0; i < dates.length; i++) {
+                                        dates[i] = tempList.get(i);
                                     }
                                     dealReceiveData(dates);
                                 } else {
-                                    if (len !=0 && dis == false) {
-                                        DealHander.sendMessage(handler, Status.CONNECT_BREAK, null);
+                                    if (len != 0 && dis == false) {
+                                        client.sendHandleMessage(Status.CONNECT_BREAK);
                                         dis = true;
                                     }
                                 }
@@ -357,20 +578,26 @@ public class SocketClient implements Runnable {
 
         /**
          * 处理接受数据
-         *
          */
         private void dealReceiveData(byte[] datas) {
-//            byte[] dates = buffer.array();
             if (datas == null || datas.length <= 0) {
                 return;
             }
-//            this.messageRunable.put(Arrays.copyOf(datas, datas.length));
-            this.messageRunable.put(datas);
+            obtainDealReceiveDataThread().put(datas);
         }
     }
 
 
-    private class DealMessageRunable implements Runnable {
+    private DealReceiveDataThread dealReceiveDataThread;
+
+    public DealReceiveDataThread obtainDealReceiveDataThread() {
+        if (isNull(dealReceiveDataThread)) {
+            this.dealReceiveDataThread = new DealReceiveDataThread();
+        }
+        return dealReceiveDataThread;
+    }
+
+    private class DealReceiveDataThread extends Thread {
         private LinkedBlockingQueue<byte[]> queue;
         private List<Byte> packetRawDatas;
         private boolean stop = false;
@@ -414,30 +641,14 @@ public class SocketClient implements Runnable {
          * @param datas
          */
         private void deal(byte[] datas) {
-            callback(datas);
-        }
 
-        private void callback(byte[] datas){
-            Message message = getDealHander().obtainMessage();
-            message.what = DealHander.DATA_MESSAGE;
-            message.obj = new ResponsePacketData(Arrays.copyOf(datas, datas.length));
-            message.sendToTarget();
-        }
+            for (byte b : datas) {
+                System.out.println("------------------::" + b);
+                if (b == 0x13) {
 
-        public  String bytesToHexString(byte[] src) {
-            StringBuilder stringBuilder = new StringBuilder("");
-            if (src == null || src.length <= 0) {
-                return null;
-            }
-            for (int i = 0; i < src.length; i++) {
-                int v = src[i] & 0xFF;
-                String hv = Integer.toHexString(v);
-                if (hv.length() < 2) {
-                    stringBuilder.append(0);
                 }
-                stringBuilder.append(hv + " ");
             }
-            return stringBuilder.toString();
+            client.sendHandleMessage(EventBusHandler.DATA_MESSAGE, new ResponsePacketData(Arrays.copyOf(datas, datas.length)));
         }
 
         public boolean isStop() {
@@ -449,93 +660,19 @@ public class SocketClient implements Runnable {
         }
     }
 
-    private class PostDataRunnable implements Runnable {
-        private boolean stop = false;
-        private SocketChannel postChannel;
-        private LinkedBlockingQueue<PacketData> messageQueue;
 
-        public PostDataRunnable(SocketChannel channel) {
-            this.postChannel = channel;
-            obtainQueue();
+    private HeartbeatThread heartbeatThread;
+
+    public HeartbeatThread obtainHeartbeatThread() {
+        if (isNull(this.heartbeatThread)) {
+            this.heartbeatThread = new HeartbeatThread();
         }
-
-        public boolean isStop() {
-            return stop;
-        }
-
-        public void setStop(boolean stop) {
-            this.stop = stop;
-        }
-
-        private LinkedBlockingQueue<PacketData> obtainQueue() {
-            if (null == this.messageQueue) {
-                this.messageQueue = new LinkedBlockingQueue<>();
-            }
-            return this.messageQueue;
-        }
-
-        /**
-         * 发送信息
-         *
-         * @param data
-         */
-        public void putMessage(PacketData data) {
-            obtainQueue().offer(data);
-        }
-
-        @Override
-        public void run() {
-            while (!isStop()) {
-                if (obtainQueue().size() <= 0) {
-                    continue;
-                }
-                PacketData packetData = obtainQueue().poll();
-                if (packetData == null) {
-                    continue;
-                }
-                if (postChannel.isConnected() && postChannel.isOpen()) {
-                    this.post(packetData);
-                } else {
-                    L.d("------- this.post(packetData);----------");
-                }
-            }
-        }
-
-        private void post(PacketData packetData) {
-            if (this.postChannel == null) {
-                System.out.println("post out is null ");
-                return;
-            }
-
-            try {
-
-                if (!this.postChannel.isConnected()
-                        || !this.postChannel.finishConnect()
-                        || !this.postChannel.socket().isConnected() ||
-                        this.postChannel.socket().isClosed()) {
-                    System.out.println("socket not connect or close ");
-                    return;
-                }
-                ByteBuffer buffer = ByteBuffer.wrap(packetData.warpData());
-                this.postChannel.write(buffer);
-            } catch (IOException e) {
-                e.printStackTrace();
-                L.e(e.getMessage());
-            }
-        }
+        return this.heartbeatThread;
     }
 
-    private class HeartbeatRunnable implements Runnable {
+    private class HeartbeatThread extends Thread {
         private boolean stop = false;
-        public HeartbeatRunnable(PacketData packetData) {
-            this.heartPackDate = packetData;
-        }
 
-        private PacketData heartPackDate = null;
-
-        public void setHeartPackDate(PacketData heartPackDate) {
-            this.heartPackDate = heartPackDate;
-        }
 
         public boolean isStop() {
             return stop;
@@ -549,29 +686,14 @@ public class SocketClient implements Runnable {
         public void run() {
             try {
                 while (!isStop()) {
-                    Thread.sleep(socketConfig.getHeartBeatInterval());
-                    if (getCurrentStatus() != Status.CONNECT_SUCCESS) {
-                        System.out.println("if (getCurrentStatus() == Status.CONNECT_SUCCESS) {");
-                        continue;
-                    }
-                    post(heartPackDate);
+
+                    Thread.sleep(client.clientConfig.getHeartBeatInterval());
+                    send(client.clientConfig.getHeartbeatPacketData());
                 }
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }
-    }
-
-    public void post(PacketData packetDate) {
-        if (postDataRunnable == null) {
-            System.out.println("postDataRunnable out is null ");
-            return;
-        }
-        if (packetDate == null) {
-            System.out.println("postData  is null ");
-            return;
-        }
-        postDataRunnable.putMessage(packetDate);
     }
 
     public interface OnWarpPacketData {
@@ -692,62 +814,19 @@ public class SocketClient implements Runnable {
         this.onConnectListener = onConnectListener;
     }
 
-
-    private static class DealHander extends Handler {
-        private static final int HEART_MESSAGE = 0x00;
-        private static final int DATA_MESSAGE = 0x11;
-
-
-        private static void sendMessage(Handler handler, int what, Object obj) {
-            Message message = handler.obtainMessage();
-            message.what = what;
-            message.obj = obj;
-            message.sendToTarget();
+    public String bytesToHexString(byte[] src) {
+        StringBuilder stringBuilder = new StringBuilder("");
+        if (src == null || src.length <= 0) {
+            return null;
         }
-
-        private WeakReference<SocketClient> referenceTcpClient = null;
-
-        public DealHander(SocketClient socketClient) {
-            super(Looper.getMainLooper());
-            referenceTcpClient = new WeakReference<SocketClient>(socketClient);
-        }
-
-        @Override
-        public void handleMessage(Message msg) {
-            super.handleMessage(msg);
-            if (this.referenceTcpClient == null || referenceTcpClient.get() == null) {
-                return;
+        for (int i = 0; i < src.length; i++) {
+            int v = src[i] & 0xFF;
+            String hv = Integer.toHexString(v);
+            if (hv.length() < 2) {
+                stringBuilder.append(0);
             }
-            switch (msg.what) {
-                case HEART_MESSAGE://心跳包
-
-                    break;
-                case DATA_MESSAGE://数据包
-                    if (referenceTcpClient.get().onReceiveListeners != null && referenceTcpClient.get().onReceiveListeners.size() > 0) {
-                        for (OnReceiveListener onrec : referenceTcpClient.get().onReceiveListeners) {
-                            if (onrec != null) {
-                                onrec.receive((ResponsePacketData) msg.obj);
-                            }
-                        }
-                    }
-                    break;
-
-                case Status.CONNECT_FAILED:
-                    if (referenceTcpClient.get().onConnectListener != null) {
-                        referenceTcpClient.get().onConnectListener.connectFailed();
-                    }
-                    break;
-                case Status.CONNECT_SUCCESS:
-                    if (referenceTcpClient.get().onConnectListener != null) {
-                        referenceTcpClient.get().onConnectListener.connectSuccess();
-                    }
-                    break;
-                case Status.CONNECT_BREAK:
-                    if (referenceTcpClient.get().onConnectListener != null) {
-                        referenceTcpClient.get().onConnectListener.connectBreak();
-                    }
-                    break;
-            }
+            stringBuilder.append(hv + " ");
         }
+        return stringBuilder.toString();
     }
 }
