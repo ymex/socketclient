@@ -7,10 +7,8 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
-import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 
-import cn.ymex.cute.log.L;
 import okio.ByteString;
 
 
