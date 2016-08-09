@@ -7,9 +7,11 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 
 import cn.ymex.cute.log.L;
+import okio.ByteString;
 
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
@@ -33,6 +35,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         socketClient = new SocketClient();
         config = new SocketClient.ClientConfig(HOST,PORT);
         config.setHeartBeatInterval(3 * 1000);
+        config.setAllocateBuffer(16);
         config.setHeartbeatPacketData(new SocketClient.PacketData("$H2B$".getBytes(Charset.forName("utf-8"))));
         socketClient.connect(config);
         socketClient.setOnReceiveListener(onReceiveListener);
@@ -44,7 +47,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         @Override
         public void receive(SocketClient.ResponsePacketData result) {
             String message = new String(result.untieData());
-            L.d(message);
             tv_msg.setText(message);
         }
     };

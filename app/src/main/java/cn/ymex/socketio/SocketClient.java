@@ -11,6 +11,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -354,6 +355,10 @@ public class SocketClient {
         private String host;
         private int port;
         private PacketData heartbeatPacketData;
+        private byte[] heartHead; //心跳包头部
+        private byte[] heartTail; //心跳包尾部
+        private byte[] packetHead; // 数据包头部
+        private byte[] packetTail; // 数据包尾部
         private long heartBeatInterval = 30 * 1000;
         private int soTimeout = 1 * 1000;
         private int allocateBuffer = 512;
@@ -544,7 +549,6 @@ public class SocketClient {
                                 }
                                 ByteBuffer buffer = ByteBuffer.allocate(client.clientConfig.getAllocateBuffer());
                                 int len = channel.read(buffer);
-                                L.d(";;;;;;;;;;;;;;;--: " + len);
                                 buffer.flip();
                                 if (len > 0) {
                                     dis = false;
@@ -642,14 +646,16 @@ public class SocketClient {
          */
         private void deal(byte[] datas) {
 
-            for (byte b : datas) {
-                System.out.println("------------------::" + b);
-                if (b == 0x13) {
+//            ByteString bstring = ByteString.of(datas);
+//            if (bstring.startsWith("[start]:".getBytes(Charset.forName("utf-8")))) {
+//                System.out.println("真的吗：：："+bstring.utf8());
+//                bstring.indexOf()
+//            }
 
-                }
-            }
+
             client.sendHandleMessage(EventBusHandler.DATA_MESSAGE, new ResponsePacketData(Arrays.copyOf(datas, datas.length)));
         }
+
 
         public boolean isStop() {
             return stop;
@@ -814,19 +820,59 @@ public class SocketClient {
         this.onConnectListener = onConnectListener;
     }
 
-    public String bytesToHexString(byte[] src) {
-        StringBuilder stringBuilder = new StringBuilder("");
-        if (src == null || src.length <= 0) {
-            return null;
+
+    public static class ByteStringC {
+        /**
+         * @param the
+         * @param other
+         * @return
+         */
+        public byte[] concat(byte[] the, byte[] other) {
+            byte[] newone = new byte[the.length + other.length];
+            System.arraycopy(the, 0, newone, 0, the.length);
+            System.arraycopy(other, 0, newone, the.length, other.length);
+            return newone;
         }
-        for (int i = 0; i < src.length; i++) {
-            int v = src[i] & 0xFF;
-            String hv = Integer.toHexString(v);
-            if (hv.length() < 2) {
-                stringBuilder.append(0);
+
+        /**
+         * 判断数据是否相等
+         *
+         * @param a
+         * @param aOffset
+         * @param b
+         * @param bOffset
+         * @param byteCount
+         * @return
+         */
+        public boolean arrayRangeEquals(
+                byte[] a, int aOffset, byte[] b, int bOffset, int byteCount) {
+            for (int i = 0; i < byteCount; i++) {
+                if (a[i + aOffset] != b[i + bOffset]) return false;
             }
-            stringBuilder.append(hv + " ");
+            return true;
         }
-        return stringBuilder.toString();
+
+        /**
+         * 转16进制字符串
+         *
+         * @param src
+         * @return
+         */
+        public String toHexString(byte[] src) {
+            StringBuilder stringBuilder = new StringBuilder("");
+            if (src == null || src.length <= 0) {
+                return null;
+            }
+            for (int i = 0; i < src.length; i++) {
+                int v = src[i] & 0xFF;
+                String hv = Integer.toHexString(v);
+                if (hv.length() < 2) {
+                    stringBuilder.append(0);
+                }
+                stringBuilder.append(hv + " ");
+            }
+            return stringBuilder.toString();
+        }
+
     }
 }
