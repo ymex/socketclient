@@ -1,4 +1,4 @@
-package cn.ymex.socketio;
+package cn.ymex.socket;
 
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
@@ -9,6 +9,11 @@ import android.widget.TextView;
 
 import java.nio.charset.Charset;
 
+import cn.ymex.cute.socket.ClientConfig;
+import cn.ymex.cute.socket.Listener;
+import cn.ymex.cute.socket.PacketData;
+import cn.ymex.cute.socket.ResponsePacketData;
+import cn.ymex.cute.socket.SocketClient;
 import okio.ByteString;
 
 
@@ -19,11 +24,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
 
     public static int PORT = 60000;
-    public static final String HOST = "192.168.1.120";
+    public static final String HOST = "192.168.6.20";
 
 
     private SocketClient socketClient;
-    SocketClient.ClientConfig config = null;
+    ClientConfig config = null;
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -31,29 +36,30 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         initView();
 
         socketClient = new SocketClient();
-        config = new SocketClient.ClientConfig(HOST,PORT);
+        config = new ClientConfig(HOST,PORT);
         config.setHeartBeatInterval(3 * 1000);
         config.setAllocateBuffer(16);
-        config.setHeartbeatPacketData(new SocketClient.PacketData("$H2B$".getBytes(Charset.forName("utf-8"))));
+        config.setHeartbeatPacketData(new PacketData("$H2B$".getBytes(Charset.forName("utf-8"))));
         socketClient.connect(config);
         socketClient.setOnReceiveListener(onReceiveListener);
     }
 
 
 
-    private SocketClient.OnReceiveListener onReceiveListener = new SocketClient.OnReceiveListener() {
+    private Listener.OnReceiveListener onReceiveListener = new Listener.OnReceiveListener() {
         @Override
-        public void receive(SocketClient.ResponsePacketData result) {
+        public void receive(ResponsePacketData result) {
             String message = new String(result.untieData());
             tv_msg.setText(message);
         }
     };
 
+
     @Override
     public void onClick(View v) {
 
         final String text = ed_msg.getText().toString();
-        socketClient.send(new SocketClient.PacketData(text.getBytes()));
+        socketClient.send(new PacketData(text.getBytes()));
     }
 
     private void initView() {

@@ -1,4 +1,4 @@
-package cn.ymex.socketio;
+package cn.ymex.cute.socket;
 
 import android.os.Handler;
 import android.os.Looper;
@@ -18,6 +18,9 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 import cn.ymex.cute.log.L;
 
+import static cn.ymex.cute.socket.Tools.checkNull;
+import static cn.ymex.cute.socket.Tools.isNull;
+
 public class SocketClient {
     private SocketClient client = this;
     private ClientConfig clientConfig;
@@ -33,7 +36,6 @@ public class SocketClient {
 
     public SocketClient() {
     }
-
 
     /**
      * 连接到服务器
@@ -286,7 +288,7 @@ public class SocketClient {
 
     private void messageOnReceiveData(ResponsePacketData responsePacketData) {
         if (this.onReceiveListeners != null && this.onReceiveListeners.size() > 0) {
-            for (OnReceiveListener onrec : this.onReceiveListeners) {
+            for (Listener.OnReceiveListener onrec : this.onReceiveListeners) {
                 if (onrec != null) {
                     onrec.receive(responsePacketData);
                 }
@@ -339,127 +341,6 @@ public class SocketClient {
         //关闭 操作
     }
 
-    public static class Status {//socketclient 状态
-        public static final int CONNECT_PREPARE = 0x11; //socket开始连接
-        public static final int CONNECT_WAITING = 0x22; //socket 连接中
-        public static final int CONNECT_SUCCESS = 0x33;//socket 连接成功
-        public static final int CONNECT_BREAK = 0x44;//socket 连接断开
-        public static final int CONNECT_FAILED = 0x55; //socket 连接失败
-    }
-
-    /**
-     * socket 配置
-     */
-    public static class ClientConfig {
-        private String host;
-        private int port;
-        private PacketData heartbeatPacketData;
-        private byte[] heartHead; //心跳包头部
-        private byte[] heartTail; //心跳包尾部
-        private byte[] packetHead; // 数据包头部
-        private byte[] packetTail; // 数据包尾部
-        private long heartBeatInterval = 30 * 1000;
-        private int soTimeout = 1 * 1000;
-        private int allocateBuffer = 512;
-
-        public ClientConfig() {
-
-        }
-
-        public ClientConfig(String host, int port) {
-            this.host = host;
-            this.port = port;
-        }
-
-        public int getAllocateBuffer() {
-            return allocateBuffer;
-        }
-
-        public void setAllocateBuffer(int allocateBuffer) {
-            this.allocateBuffer = allocateBuffer;
-        }
-
-        public int getSoTimeout() {
-            return soTimeout;
-        }
-
-        public void setSoTimeout(int soTimeout) {
-            this.soTimeout = soTimeout;
-        }
-
-        public long getHeartBeatInterval() {
-            return heartBeatInterval;
-        }
-
-        public void setHeartBeatInterval(long heartBeatInterval) {
-            this.heartBeatInterval = heartBeatInterval;
-        }
-
-        public PacketData getHeartbeatPacketData() {
-            return heartbeatPacketData;
-        }
-
-        public void setHeartbeatPacketData(PacketData heartbeatPacketData) {
-            this.heartbeatPacketData = heartbeatPacketData;
-        }
-
-        public String getHost() {
-            return host;
-        }
-
-        public void setHost(String host) {
-            this.host = host;
-        }
-
-        public int getPort() {
-            return port;
-        }
-
-        public void setPort(int port) {
-            this.port = port;
-        }
-
-    }
-
-    /**
-     * 检查对象是否为空，为空抛出 NullPointerException
-     *
-     * @param notice
-     * @param t
-     * @param <T>
-     * @return
-     */
-    private <T> T checkNull(T t, String notice) {
-        if (null == t) {
-            throw new NullPointerException(notice == null ? "" : notice);
-        }
-        return t;
-    }
-
-    /**
-     * 检查对象是否为空，为空抛出 NullPointerException
-     *
-     * @param t
-     * @param <T>
-     * @return
-     */
-    private <T> T checkNull(T t) {
-        return checkNull(t, null);
-    }
-
-    /**
-     * 判断对象是否为空
-     *
-     * @param t
-     * @param <T>
-     * @return
-     */
-    private <T> boolean isNull(T t) {
-        if (null == t) {
-            return true;
-        }
-        return false;
-    }
 
     public static class Builder {
         SocketClient socketClient = null;
@@ -495,7 +376,7 @@ public class SocketClient {
         }
 
         public Builder setAllocateBuffer(int allocateBuffer) {
-            this.config.allocateBuffer = allocateBuffer;
+            this.config.setAllocateBuffer(allocateBuffer);
             return this;
         }
 
@@ -701,100 +582,16 @@ public class SocketClient {
         }
     }
 
-    public interface OnWarpPacketData {
-        byte[] warpData(byte[] rawData);
-    }
 
-    public static class PacketData {
-        private byte[] rawData;
-
-        public PacketData(byte[] rawData) {
-            this.rawData = rawData;
-        }
-
-        public byte[] warpData() {
-            if (onWarpPacketData == null) {
-                return this.rawData;
-            }
-            return onWarpPacketData.warpData(this.rawData);
-        }
-
-        private OnWarpPacketData onWarpPacketData;
-
-        public void setOnWarpPacketData(OnWarpPacketData onWarpPacketData) {
-            this.onWarpPacketData = onWarpPacketData;
-        }
-    }
-
-    public interface OnUntiePacketDate {
-        byte[] untieData(byte[] resultData);
-    }
-
-    public static class ResponsePacketData {
-        private int dataLength = 1024;
-        private byte[] resultData;
-
-        public ResponsePacketData() {
-        }
-
-        public ResponsePacketData(byte[] resultData) {
-            this.resultData = resultData;
-        }
-
-
-        public int getDataLength() {
-            return dataLength;
-        }
-
-        public void setDataLength(int dataLength) {
-            this.dataLength = dataLength;
-        }
-
-        public byte[] untieData() {
-            if (onUntiePacketDate == null) {
-                return this.resultData;
-            }
-            return onUntiePacketDate.untieData(resultData);
-        }
-
-        private OnUntiePacketDate onUntiePacketDate;
-
-        public void setOnUntiePacketDate(OnUntiePacketDate onUntiePacketDate) {
-            this.onUntiePacketDate = onUntiePacketDate;
-        }
-    }
-
-
-    public interface OnReceiveListener {
-        /**
-         * 接收服务器socket 返回数据，每有数据返回时都会调用。
-         *
-         * @param result
-         */
-        void receive(ResponsePacketData result);
-    }
-
-    public interface OnConnectListener {
-        void connectPrepare();
-
-        void connectWaiting();
-
-        void connectSuccess();
-
-        void connectBreak();
-
-        void connectFailed();
-    }
-
-    private ArrayList<OnReceiveListener> onReceiveListeners = null;
-    private OnConnectListener onConnectListener = null;
+    private ArrayList<Listener.OnReceiveListener> onReceiveListeners = null;
+    private Listener.OnConnectListener onConnectListener = null;
 
     /**
      * 添加消息接收回调
      *
      * @param onReceiveListener
      */
-    public void setOnReceiveListener(OnReceiveListener onReceiveListener) {
+    public void setOnReceiveListener(Listener.OnReceiveListener onReceiveListener) {
         if (onReceiveListeners == null) {
             onReceiveListeners = new ArrayList<>();
         }
@@ -809,69 +606,13 @@ public class SocketClient {
      *
      * @param onReceiveListener
      */
-    public void removeOnreceiveListener(OnReceiveListener onReceiveListener) {
+    public void removeOnreceiveListener(Listener.OnReceiveListener onReceiveListener) {
         if (null != onReceiveListeners && onReceiveListeners.contains(onReceiveListener)) {
             onReceiveListeners.remove(onReceiveListener);
         }
     }
 
-    public void setOnConnectListener(OnConnectListener onConnectListener) {
+    public void setOnConnectListener(Listener.OnConnectListener onConnectListener) {
         this.onConnectListener = onConnectListener;
-    }
-
-
-    public static class ByteStringC {
-        /**
-         * @param the
-         * @param other
-         * @return
-         */
-        public byte[] concat(byte[] the, byte[] other) {
-            byte[] newone = new byte[the.length + other.length];
-            System.arraycopy(the, 0, newone, 0, the.length);
-            System.arraycopy(other, 0, newone, the.length, other.length);
-            return newone;
-        }
-
-        /**
-         * 判断数据是否相等
-         *
-         * @param a
-         * @param aOffset
-         * @param b
-         * @param bOffset
-         * @param byteCount
-         * @return
-         */
-        public boolean arrayRangeEquals(
-                byte[] a, int aOffset, byte[] b, int bOffset, int byteCount) {
-            for (int i = 0; i < byteCount; i++) {
-                if (a[i + aOffset] != b[i + bOffset]) return false;
-            }
-            return true;
-        }
-
-        /**
-         * 转16进制字符串
-         *
-         * @param src
-         * @return
-         */
-        public String toHexString(byte[] src) {
-            StringBuilder stringBuilder = new StringBuilder("");
-            if (src == null || src.length <= 0) {
-                return null;
-            }
-            for (int i = 0; i < src.length; i++) {
-                int v = src[i] & 0xFF;
-                String hv = Integer.toHexString(v);
-                if (hv.length() < 2) {
-                    stringBuilder.append(0);
-                }
-                stringBuilder.append(hv + " ");
-            }
-            return stringBuilder.toString();
-        }
-
     }
 }

@@ -1,4 +1,4 @@
-package cn.ymex.socketio;
+package cn.ymex.socket;
 
 import org.junit.Test;
 
