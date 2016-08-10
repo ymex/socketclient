@@ -28,6 +28,7 @@ public class UnitTest {
             byte[] a, int aOffset, byte[] b, int bOffset, int byteCount) {
         for (int i = 0; i < byteCount; i++) {
             if (a[i + aOffset] != b[i + bOffset]) return false;
+
         }
         return true;
     }
@@ -38,19 +39,19 @@ public class UnitTest {
 
     @Test
     public void print() {
-        byte[] rawbyte = tobt("123128812434883215883451");
-        byte[] spit =tobt("88");
+        byte[] rawbyte = tobt("123886687122883");
+        byte[] spit = tobt("88");
 
         for (int i = 0; i < rawbyte.length; i++) {
-            byte[] sclie1 = new byte[spit.length];
-            System.arraycopy(rawbyte,0,sclie1,i,sclie1.length);
+            byte[] sclie = new byte[spit.length];
+            if (i > rawbyte.length - spit.length) {
+                return;
+            }
+            System.arraycopy(rawbyte, i, sclie, 0, sclie.length);
+            if (arrayRangeEquals(rawbyte, i, spit, 0, sclie.length)) {
+                System.out.println("----------");
+            }
         }
-
-
-        byte[] sclie1 = new byte[spit.length];
-        System.arraycopy(rawbyte,0,sclie1,0,sclie1.length);
-        System.out.println("--------------");
-        System.out.println(new String(sclie1));
 
     }
 
