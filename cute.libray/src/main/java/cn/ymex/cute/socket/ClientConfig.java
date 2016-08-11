@@ -18,6 +18,11 @@ public class ClientConfig {
     private int soTimeout = 1 * 1000;
     private int allocateBuffer = 512;
 
+    private boolean autoConnectWhenBreak = false;//断开重连服务器
+    private boolean autoConnectWhenFailed = false;//连接失败重连服务器
+
+
+
     public ClientConfig() {
 
     }
@@ -75,4 +80,19 @@ public class ClientConfig {
         this.port = port;
     }
 
+    public boolean isAutoConnectWhenBreak() {
+        return autoConnectWhenBreak;
+    }
+
+    public void setAutoConnectWhenBreak(boolean autoConnectWhenBreak) {
+        this.autoConnectWhenBreak = autoConnectWhenBreak;
+    }
+
+    public boolean isAutoConnectWhenFailed() {
+        return autoConnectWhenFailed;
+    }
+
+    public void setAutoConnectWhenFailed(boolean autoConnectWhenFailed) {
+        this.autoConnectWhenFailed = autoConnectWhenFailed;
+    }
 }

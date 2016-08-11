@@ -22,6 +22,7 @@ import static cn.ymex.cute.socket.Tools.checkNull;
 import static cn.ymex.cute.socket.Tools.isNull;
 
 public class SocketClient {
+    private boolean activeBreak = false; //主动断开标识[主动断开后]
     private SocketClient client = this;
     private ClientConfig clientConfig;
     private SocketChannel socketChannel = null;
@@ -80,31 +81,21 @@ public class SocketClient {
      * 关闭socketclient
      */
     public void close() {
-//        if (!isNull(this.heartbeatThread) && !this.heartbeatThread.isStop()) {
-//            this.heartbeatThread.setStop(true);
-//        }
-//        if (!isNull(this.postDataThread) && !this.postDataThread.isStop()) {
-//            this.postDataThread.setStop(true);
-//        }
-//        if (!isNull(this.receiveDataThread) && !this.receiveDataThread.isStop()) {
-//            this.receiveDataThread.setStop(true);
-//        }
-//
-//        if (!isNull(this.dealReceiveDataThread) && !this.dealReceiveDataThread.isStop()) {
-//            this.dealReceiveDataThread.setStop(true);
-//        }
-
         try {
+
+            if (this.socketChannel != null && this.socketChannel.isConnected()) {
+                this.socketChannel.close();
+                if (this.selector != null) {
+                    this.selector.selectNow();
+                }
+                this.socketChannel = null;
+            }
 
             if (this.selector != null && this.selector.isOpen()) {
                 this.selector.close();
                 this.selector = null;
             }
 
-            if (this.socketChannel != null && this.socketChannel.isConnected()) {
-                this.socketChannel.close();
-                this.socketChannel = null;
-            }
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -216,7 +207,10 @@ public class SocketClient {
                 if (packetData == null) {
                     continue;
                 }
-                if (client.socketChannel.isConnected() && client.socketChannel.isOpen()) {
+                 //发送时加锁
+                if (client.socketChannel != null
+                        &&client.socketChannel.isConnected()
+                        && client.socketChannel.isOpen()) {
                     this._send(packetData);
                 }
             }
@@ -242,6 +236,7 @@ public class SocketClient {
             } catch (IOException e) {
                 e.printStackTrace();
                 L.e(e.getMessage());
+                client.sendHandleMessage(Status.CONNECT_BREAK);
             }
         }
     }
@@ -373,18 +368,52 @@ public class SocketClient {
         if (!isNull(this.onConnectListener)) {
             this.onConnectListener.connectBreak();
         }
-        close();
-        reconnect();
+        this.close();
+        if (!isActiveBreak()&&client.clientConfig.isAutoConnectWhenBreak()) {
+            this.reconnect();
+        }
     }
 
     private void messageConnectFailed() {
         this.currentStatus = Status.CONNECT_FAILED;
         if (!isNull(this.onConnectListener)) {
-            this.onConnectListener.connectFailed();
+            this.onConnectListener.connectFailed(client);
         }
+        close();
+        if (!isActiveBreak()&&client.clientConfig.isAutoConnectWhenFailed()) {
+            this.reconnect();
+        }
+    }
+
+    public boolean isActiveBreak() {
+        return activeBreak;
+    }
+
+    public void setActiveBreak(boolean activeBreak) {
+        this.activeBreak = activeBreak;
+    }
+
+    /**
+     * 主动断开连接
+     */
+    public void disconnect() {
+        setActiveBreak(true);
         close();
     }
 
+    /**
+     * 销毁SocketClient
+     * 若调用了些方法，socketclient 不可再重用
+     */
+    public void destroy() {
+        setActiveBreak(true);
+        close();
+        obtainHeartbeatThread().setStop(true);
+        obtionPostDataThread().setStop(true);
+        obtainReceiveDataThread().setStop(true);
+        obtainDealReceiveDataThread().setStop(true);
+        client = null;
+    }
 
     public static class Builder {
         SocketClient socketClient = null;
@@ -485,9 +514,10 @@ public class SocketClient {
                                     dealReceiveData(dates);
                                 } else if (len <= -1) {
                                     buffer.clear();
+                                    selector.selectedKeys().remove(sk);
                                     sk.channel().close();
+                                    selector.selectNow();
                                     sk.cancel();
-                                    selector.selectedKeys();
                                     client.sendHandleMessage(Status.CONNECT_BREAK);
                                     break;
                                 }

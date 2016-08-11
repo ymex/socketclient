@@ -16,7 +16,7 @@ public interface Listener {
 
         void connectBreak();
 
-        void connectFailed();
+        void connectFailed(SocketClient client);
     }
 
     /**

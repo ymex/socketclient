@@ -1,5 +1,6 @@
 package cn.ymex.socket;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
@@ -30,6 +31,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private SocketClient socketClient;
     ClientConfig config = null;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -37,18 +39,19 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         initView();
 
         socketClient = new SocketClient();
-        config = new ClientConfig(HOST,PORT);
+        config = new ClientConfig(HOST, PORT);
         config.setHeartBeatInterval(3 * 1000);
         //一次读取的字节数
         config.setAllocateBuffer(512);
         // 不加心跳包，默认无心跳
         config.setHeartbeatPacketData(new PacketData(ByteString.utf8("H-E-A-R-T-B-E-A-T")));
+        config.setAutoConnectWhenBreak(true);
         socketClient.connect(config);
         socketClient.setOnReceiveListener(onReceiveListener);
         socketClient.setOnConnectListener(onConnectListener);
     }
 
-    private Listener.OnConnectListener onConnectListener =new Listener.OnConnectListener() {
+    private Listener.OnConnectListener onConnectListener = new Listener.OnConnectListener() {
         @Override
         public void connectPrepare() {
             L.d("----connectPrepare------");
@@ -72,10 +75,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
 
         @Override
-        public void connectFailed() {
-            L.d("-----connectFailed-----");
+        public void connectFailed(SocketClient client) {
+            L.d("-----connectFailed-----: 尝试重新连接");
+//            client.reconnect();
         }
     };
+
 
     private Listener.OnReceiveListener onReceiveListener = new Listener.OnReceiveListener() {
         @Override
@@ -91,6 +96,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         final String text = ed_msg.getText().toString();
         socketClient.send(new PacketData(text.getBytes()));
+//        socketClient.disconnect();
     }
 
     private void initView() {
