@@ -47,6 +47,15 @@ public class ByteString implements Serializable, Comparable<ByteString> {
         return result != null ? result : (utf8 = new String(data, UTF_8));
     }
 
+    /**
+     * 字串转 utf-8 字节码
+     * @param text
+     * @return
+     */
+    public static byte[] utf8(String text) {
+        return text !=null? text.getBytes(UTF_8) :null;
+    }
+
     public ByteString substring(int beginIndex) {
         return substring(beginIndex, data.length);
     }

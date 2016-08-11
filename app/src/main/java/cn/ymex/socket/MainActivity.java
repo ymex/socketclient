@@ -9,12 +9,13 @@ import android.widget.TextView;
 
 import java.nio.charset.Charset;
 
+import cn.ymex.cute.log.L;
+import cn.ymex.cute.socket.ByteString;
 import cn.ymex.cute.socket.ClientConfig;
 import cn.ymex.cute.socket.Listener;
 import cn.ymex.cute.socket.PacketData;
 import cn.ymex.cute.socket.ResponsePacketData;
 import cn.ymex.cute.socket.SocketClient;
-import okio.ByteString;
 
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
@@ -38,13 +39,42 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         socketClient = new SocketClient();
         config = new ClientConfig(HOST,PORT);
         config.setHeartBeatInterval(3 * 1000);
-        config.setAllocateBuffer(16);
-        config.setHeartbeatPacketData(new PacketData("$H2B$".getBytes(Charset.forName("utf-8"))));
+        //一次读取的字节数
+        config.setAllocateBuffer(512);
+        // 不加心跳包，默认无心跳
+        config.setHeartbeatPacketData(new PacketData(ByteString.utf8("H-E-A-R-T-B-E-A-T")));
         socketClient.connect(config);
         socketClient.setOnReceiveListener(onReceiveListener);
+        socketClient.setOnConnectListener(onConnectListener);
     }
 
+    private Listener.OnConnectListener onConnectListener =new Listener.OnConnectListener() {
+        @Override
+        public void connectPrepare() {
+            L.d("----connectPrepare------");
+        }
 
+        @Override
+        public void connectWaiting() {
+        }
+
+        @Override
+        public void connectSuccess(SocketClient socketClient) {
+            L.d("----connectSuccess------");
+            socketClient.send(new PacketData(ByteString.utf8("client ----connectSuccess------")));
+        }
+
+        @Override
+        public void connectBreak() {
+            L.d("-----connectBreak-----");
+
+        }
+
+        @Override
+        public void connectFailed() {
+            L.d("-----connectFailed-----");
+        }
+    };
 
     private Listener.OnReceiveListener onReceiveListener = new Listener.OnReceiveListener() {
         @Override

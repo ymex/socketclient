@@ -38,11 +38,19 @@ public class SocketClient {
     }
 
     /**
+     * 重新连接
+     */
+    public void reconnect() {
+        connect(this.clientConfig);
+    }
+
+    /**
      * 连接到服务器
      *
      * @param config
      */
     public void connect(ClientConfig config) {
+        client.sendHandleMessage(Status.CONNECT_PREPARE);
         if (this.currentStatus == Status.CONNECT_SUCCESS
                 || this.currentStatus == Status.CONNECT_WAITING) {
             L.w("socket is already runing...");
@@ -50,7 +58,8 @@ public class SocketClient {
         }
         checkNull(config, "socket config is null");
         this.clientConfig = config;
-        obtionConnectThread().start();
+        client.sendHandleMessage(Status.CONNECT_WAITING);
+        new Thread(obtionConnectThread()).start();
     }
 
     /**
@@ -71,7 +80,35 @@ public class SocketClient {
      * 关闭socketclient
      */
     public void close() {
+//        if (!isNull(this.heartbeatThread) && !this.heartbeatThread.isStop()) {
+//            this.heartbeatThread.setStop(true);
+//        }
+//        if (!isNull(this.postDataThread) && !this.postDataThread.isStop()) {
+//            this.postDataThread.setStop(true);
+//        }
+//        if (!isNull(this.receiveDataThread) && !this.receiveDataThread.isStop()) {
+//            this.receiveDataThread.setStop(true);
+//        }
+//
+//        if (!isNull(this.dealReceiveDataThread) && !this.dealReceiveDataThread.isStop()) {
+//            this.dealReceiveDataThread.setStop(true);
+//        }
 
+        try {
+
+            if (this.selector != null && this.selector.isOpen()) {
+                this.selector.close();
+                this.selector = null;
+            }
+
+            if (this.socketChannel != null && this.socketChannel.isConnected()) {
+                this.socketChannel.close();
+                this.socketChannel = null;
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -98,36 +135,36 @@ public class SocketClient {
     }
 
 
-    private ConnectThread connectThread = null;
+    private ConnectThreadRunable connectThreadRunable = null;
 
-    private ConnectThread obtionConnectThread() {
-        if (isNull(this.connectThread)) {
-            this.connectThread = new ConnectThread();
+    private ConnectThreadRunable obtionConnectThread() {
+        if (isNull(this.connectThreadRunable)) {
+            this.connectThreadRunable = new ConnectThreadRunable();
         }
-        return this.connectThread;
+        return this.connectThreadRunable;
     }
 
-    private class ConnectThread extends Thread {
+    private class ConnectThreadRunable implements Runnable {
         @Override
         public void run() {
-            super.run();
             try {
-                client.sendHandleMessage(Status.CONNECT_WAITING);
                 client.socketChannel = client._connect(
                         client.clientConfig.getHost(),
                         client.clientConfig.getPort(),
                         client.clientConfig.getSoTimeout());
-                client.selector = regConnectSelector(client.socketChannel);
+
 
                 while (true) {
                     if (client.socketChannel.finishConnect()) {
+                        client.selector = regConnectSelector(client.socketChannel);
                         client.sendHandleMessage(Status.CONNECT_SUCCESS);
                         break;
                     }
                     client.sendHandleMessage(Status.CONNECT_WAITING);
                 }
-            } catch (IOException e) {
+            } catch (Exception e) {
                 client.sendHandleMessage(Status.CONNECT_FAILED);
+                e.printStackTrace();
             }
         }
     }
@@ -312,16 +349,21 @@ public class SocketClient {
 
     private void messageOnConnectSuccess() {
         this.currentStatus = Status.CONNECT_SUCCESS;
-
-        this.obtainDealReceiveDataThread().start();
-        this.obtainReceiveDataThread().start();
-        this.obtionPostDataThread().start();
-        if (!isNull(this.clientConfig.getHeartbeatPacketData())) {
+        if (this.obtainReceiveDataThread().getState() == Thread.State.NEW) {
+            this.obtainReceiveDataThread().start();
+        }
+        if (this.obtionPostDataThread().getState() == Thread.State.NEW) {
+            this.obtionPostDataThread().start();
+        }
+        if (this.obtainHeartbeatThread().getState() == Thread.State.NEW
+                && !isNull(this.clientConfig.getHeartbeatPacketData())) {
             this.obtainHeartbeatThread().start();
         }
-
+        if (this.obtainDealReceiveDataThread().getState() == Thread.State.NEW) {
+            this.obtainDealReceiveDataThread().start();
+        }
         if (!isNull(this.onConnectListener)) {
-            this.onConnectListener.connectSuccess();
+            this.onConnectListener.connectSuccess(client);
         }
     }
 
@@ -331,6 +373,8 @@ public class SocketClient {
         if (!isNull(this.onConnectListener)) {
             this.onConnectListener.connectBreak();
         }
+        close();
+        reconnect();
     }
 
     private void messageConnectFailed() {
@@ -338,7 +382,7 @@ public class SocketClient {
         if (!isNull(this.onConnectListener)) {
             this.onConnectListener.connectFailed();
         }
-        //关闭 操作
+        close();
     }
 
 
@@ -413,7 +457,6 @@ public class SocketClient {
 
         @Override
         public void run() {
-            boolean dis = true;
             List<Byte> tempList = new ArrayList<>(client.clientConfig.getAllocateBuffer());
             while (!isStop()) {
                 try {
@@ -431,7 +474,6 @@ public class SocketClient {
                                 int len = channel.read(buffer);
                                 buffer.flip();
                                 if (len > 0) {
-                                    dis = false;
                                     tempList.clear();
                                     while (buffer.hasRemaining()) {
                                         tempList.add(buffer.get());
@@ -441,11 +483,13 @@ public class SocketClient {
                                         dates[i] = tempList.get(i);
                                     }
                                     dealReceiveData(dates);
-                                } else {
-                                    if (len != 0 && dis == false) {
-                                        client.sendHandleMessage(Status.CONNECT_BREAK);
-                                        dis = true;
-                                    }
+                                } else if (len <= -1) {
+                                    buffer.clear();
+                                    sk.channel().close();
+                                    sk.cancel();
+                                    selector.selectedKeys();
+                                    client.sendHandleMessage(Status.CONNECT_BREAK);
+                                    break;
                                 }
                                 buffer.clear();
                                 sk.interestOps(SelectionKey.OP_READ);
@@ -455,6 +499,7 @@ public class SocketClient {
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
+                    client.sendHandleMessage(Status.CONNECT_BREAK);
                 }
             }
         }
@@ -525,14 +570,9 @@ public class SocketClient {
          * @param datas
          */
         private void deal(byte[] datas) {
-
-//            ByteString bstring = ByteString.of(datas);
-//            if (bstring.startsWith("[start]:".getBytes(Charset.forName("utf-8")))) {
-//                System.out.println("真的吗：：："+bstring.utf8());
-//                bstring.indexOf()
-//            }
-
-
+            //todo 拆包代码处理
+            //todo 拆包代码处理
+            //todo 拆包代码处理
             client.sendHandleMessage(EventBusHandler.DATA_MESSAGE, new ResponsePacketData(Arrays.copyOf(datas, datas.length)));
         }
 
@@ -570,14 +610,13 @@ public class SocketClient {
 
         @Override
         public void run() {
-            try {
-                while (!isStop()) {
-
+            while (!isStop()) {
+                try {
                     Thread.sleep(client.clientConfig.getHeartBeatInterval());
                     send(client.clientConfig.getHeartbeatPacketData());
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
-            } catch (InterruptedException e) {
-                e.printStackTrace();
             }
         }
     }

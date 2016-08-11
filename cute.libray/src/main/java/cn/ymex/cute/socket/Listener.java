@@ -12,7 +12,7 @@ public interface Listener {
 
         void connectWaiting();
 
-        void connectSuccess();
+        void connectSuccess(SocketClient client);
 
         void connectBreak();
 
