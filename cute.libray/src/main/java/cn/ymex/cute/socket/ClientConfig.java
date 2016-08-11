@@ -20,7 +20,7 @@ public class ClientConfig {
 
     private boolean autoConnectWhenBreak = false;//断开重连服务器
     private boolean autoConnectWhenFailed = false;//连接失败重连服务器
-
+    private long autoConnectdelayMillis =3*1000;//重连延时多久
 
 
     public ClientConfig() {
@@ -94,5 +94,13 @@ public class ClientConfig {
 
     public void setAutoConnectWhenFailed(boolean autoConnectWhenFailed) {
         this.autoConnectWhenFailed = autoConnectWhenFailed;
+    }
+
+    public long getAutoConnectdelayMillis() {
+        return autoConnectdelayMillis;
+    }
+
+    public void setAutoConnectdelayMillis(long autoConnectdelayMillis) {
+        this.autoConnectdelayMillis = autoConnectdelayMillis;
     }
 }

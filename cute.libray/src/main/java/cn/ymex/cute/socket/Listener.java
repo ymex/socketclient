@@ -17,7 +17,43 @@ public interface Listener {
         void connectBreak();
 
         void connectFailed(SocketClient client);
+
+        void disconnect();
     }
+
+
+    class SampleOnConnectLister implements OnConnectListener {
+        @Override
+        public void connectPrepare() {
+
+        }
+
+        @Override
+        public void connectWaiting() {
+
+        }
+
+        @Override
+        public void connectSuccess(SocketClient client) {
+
+        }
+
+        @Override
+        public void connectBreak() {
+
+        }
+
+        @Override
+        public void connectFailed(SocketClient client) {
+
+        }
+
+        @Override
+        public void disconnect() {
+
+        }
+    }
+
 
     /**
      * 拆包回调

@@ -41,7 +41,7 @@ public class SocketClient {
     /**
      * 重新连接
      */
-    public void reconnect() {
+    public synchronized void reconnect() {
         connect(this.clientConfig);
     }
 
@@ -50,7 +50,7 @@ public class SocketClient {
      *
      * @param config
      */
-    public void connect(ClientConfig config) {
+    public synchronized void connect(ClientConfig config) {
         client.sendHandleMessage(Status.CONNECT_PREPARE);
         if (this.currentStatus == Status.CONNECT_SUCCESS
                 || this.currentStatus == Status.CONNECT_WAITING) {
@@ -68,7 +68,7 @@ public class SocketClient {
      *
      * @param packetDate
      */
-    public void send(PacketData packetDate) {
+    public synchronized void send(PacketData packetDate) {
         if (obtionPostDataThread() == null || !obtionPostDataThread().isAlive()) {
             System.out.println("PostDataThread  is null or PostDataThread is stop ");
             return;
@@ -80,7 +80,7 @@ public class SocketClient {
     /**
      * 关闭socketclient
      */
-    public void close() {
+    private synchronized void close() {
         try {
 
             if (this.socketChannel != null && this.socketChannel.isConnected()) {
@@ -100,6 +100,29 @@ public class SocketClient {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * 主动断开连接
+     */
+    public synchronized void disconnect() {
+        setActiveBreak(true);
+        close();
+        client.sendHandleMessage(Status.DIS_CONNECT);
+    }
+
+    /**
+     * 销毁SocketClient
+     * 若调用了些方法，socketclient 不可再重用
+     */
+    public synchronized void destroy() {
+        setActiveBreak(true);
+        close();
+        obtainHeartbeatThread().setStop(true);
+        obtionPostDataThread().setStop(true);
+        obtainReceiveDataThread().setStop(true);
+        obtainDealReceiveDataThread().setStop(true);
+        client = null;
     }
 
     /**
@@ -207,16 +230,16 @@ public class SocketClient {
                 if (packetData == null) {
                     continue;
                 }
-                 //发送时加锁
+                //发送时加锁
                 if (client.socketChannel != null
-                        &&client.socketChannel.isConnected()
+                        && client.socketChannel.isConnected()
                         && client.socketChannel.isOpen()) {
                     this._send(packetData);
                 }
             }
         }
 
-        private void _send(PacketData packetData) {
+        private synchronized void _send(PacketData packetData) {
             if (client.socketChannel == null) {
                 System.out.println("post out is null ");
                 return;
@@ -261,6 +284,19 @@ public class SocketClient {
         message.sendToTarget();
     }
 
+    /**
+     * 发送延时事件
+     * @param what
+     * @param arg1
+     * @param delayMillis
+     */
+    private void sendDelayedMessage(int what,int arg1,long delayMillis) {
+        Message message = new Message();
+        message.what= what;
+        message.arg1 = arg1;
+        this.obtianEventBusHandler().sendMessageDelayed(message,delayMillis);
+    }
+
     private EventBusHandler eventBusHandler = null;
 
     public EventBusHandler obtianEventBusHandler() {
@@ -271,8 +307,8 @@ public class SocketClient {
     }
 
     private static class EventBusHandler extends Handler {
-        private static final int HEART_MESSAGE = 0x77;
-        private static final int DATA_MESSAGE = 0x88;
+        private static final int HEART_MESSAGE = 0x777;
+        private static final int DATA_MESSAGE = 0x788;
 
 
         private WeakReference<SocketClient> referenceTcpClient = null;
@@ -309,6 +345,12 @@ public class SocketClient {
                     break;
                 case Status.CONNECT_BREAK:
                     referenceTcpClient.get().messageConnectBreak();
+                    break;
+                case Status.DIS_CONNECT:
+                    referenceTcpClient.get().messageOnDiscontent();
+                    break;
+                case Status.MESSAGE_RECONNECT:
+                    referenceTcpClient.get().messageReconnect(msg.arg1);
                     break;
             }
         }
@@ -369,9 +411,8 @@ public class SocketClient {
             this.onConnectListener.connectBreak();
         }
         this.close();
-        if (!isActiveBreak()&&client.clientConfig.isAutoConnectWhenBreak()) {
-            this.reconnect();
-        }
+        sendDelayedMessage(Status.MESSAGE_RECONNECT,Status.CONNECT_BREAK,client.clientConfig.getAutoConnectdelayMillis());
+
     }
 
     private void messageConnectFailed() {
@@ -380,10 +421,33 @@ public class SocketClient {
             this.onConnectListener.connectFailed(client);
         }
         close();
-        if (!isActiveBreak()&&client.clientConfig.isAutoConnectWhenFailed()) {
-            this.reconnect();
+        sendDelayedMessage(Status.MESSAGE_RECONNECT,Status.CONNECT_FAILED,client.clientConfig.getAutoConnectdelayMillis());
+
+    }
+
+    private void messageOnDiscontent() {
+        this.currentStatus = Status.DIS_CONNECT;
+        if (!isNull(this.onConnectListener)) {
+            this.onConnectListener.disconnect();
         }
     }
+
+
+    private synchronized void messageReconnect(int type) {
+        switch (type) {
+            case Status.CONNECT_BREAK:
+                if (!isActiveBreak() && client.clientConfig.isAutoConnectWhenBreak()) {
+                    this.reconnect();
+                }
+                break;
+            case Status.CONNECT_FAILED:
+                if (!isActiveBreak() && client.clientConfig.isAutoConnectWhenFailed()) {
+                    this.reconnect();
+                }
+                break;
+        }
+    }
+
 
     public boolean isActiveBreak() {
         return activeBreak;
@@ -393,27 +457,6 @@ public class SocketClient {
         this.activeBreak = activeBreak;
     }
 
-    /**
-     * 主动断开连接
-     */
-    public void disconnect() {
-        setActiveBreak(true);
-        close();
-    }
-
-    /**
-     * 销毁SocketClient
-     * 若调用了些方法，socketclient 不可再重用
-     */
-    public void destroy() {
-        setActiveBreak(true);
-        close();
-        obtainHeartbeatThread().setStop(true);
-        obtionPostDataThread().setStop(true);
-        obtainReceiveDataThread().setStop(true);
-        obtainDealReceiveDataThread().setStop(true);
-        client = null;
-    }
 
     public static class Builder {
         SocketClient socketClient = null;

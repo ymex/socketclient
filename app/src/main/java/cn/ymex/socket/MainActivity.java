@@ -1,14 +1,11 @@
 package cn.ymex.socket;
 
-import android.content.Context;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
-
-import java.nio.charset.Charset;
 
 import cn.ymex.cute.log.L;
 import cn.ymex.cute.socket.ByteString;
@@ -26,7 +23,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
 
     public static int PORT = 60000;
-    public static final String HOST = "192.168.6.20";
+    public static final String HOST = "192.168.1.120";
 
 
     private SocketClient socketClient;
@@ -51,16 +48,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         socketClient.setOnConnectListener(onConnectListener);
     }
 
-    private Listener.OnConnectListener onConnectListener = new Listener.OnConnectListener() {
-        @Override
-        public void connectPrepare() {
-            L.d("----connectPrepare------");
-        }
-
-        @Override
-        public void connectWaiting() { //waiting 触发比较多就不打印了。
-//            L.d("----connectWaiting------");
-        }
+    private Listener.OnConnectListener onConnectListener = new Listener.SampleOnConnectLister() {
 
         @Override
         public void connectSuccess(SocketClient socketClient) {
@@ -73,11 +61,15 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             L.d("-----connectBreak-----");
 
         }
-
         @Override
         public void connectFailed(SocketClient client) {
-            L.d("-----connectFailed-----: 尝试重新连接");
-//            client.reconnect();
+            L.d("-----connectFailed-----");
+        }
+
+        @Override
+        public void disconnect() {
+            super.disconnect();
+            L.d("-----disconnect-----");
         }
     };
 
@@ -109,6 +101,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        socketClient.close();
+        socketClient.destroy();
     }
 }
