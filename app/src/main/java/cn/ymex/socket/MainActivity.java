@@ -55,7 +55,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
 
         @Override
-        public void connectWaiting() {
+        public void connectWaiting() { //waiting 触发比较多就不打印了。
+//            L.d("----connectWaiting------");
         }
 
         @Override

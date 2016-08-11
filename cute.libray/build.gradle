@@ -1,5 +1,5 @@
 apply plugin: 'com.android.library'
-
+apply plugin: 'com.novoda.bintray-release'
 android {
     compileSdkVersion 24
     buildToolsVersion "24.0.0"
@@ -23,4 +23,22 @@ dependencies {
     testCompile 'junit:junit:4.12'
     compile 'com.android.support:appcompat-v7:24.0.0'
     compile 'cn.ymex:cute.L:0.6.0'
+}
+publish {
+    userOrg = 'ymex'
+    groupId = 'cn.ymex'
+    artifactId = 'cute.socketclient'
+    publishVersion = '0.0.1'
+    desc = ' simple socket client for android'
+    website = 'https://github.com/ymex/socketclient'
+}
+tasks.withType(JavaCompile) {
+    options.encoding = "UTF-8"
+}
+task androidJavadocs(type: Javadoc) {
+    allprojects {
+        tasks.withType(Javadoc) {
+            options.encoding = "UTF-8"
+        }
+    }
 }
