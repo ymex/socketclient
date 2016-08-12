@@ -22,8 +22,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private Button btn_send = null;
 
 
-    public static int PORT = 60000;
     public static final String HOST = "192.168.1.120";
+    public static int PORT = 60000;
 
 
     private SocketClient socketClient;
