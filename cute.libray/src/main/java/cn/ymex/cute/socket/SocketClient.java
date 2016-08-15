@@ -38,6 +38,10 @@ public class SocketClient {
     public SocketClient() {
     }
 
+    public int getCurrentStatus() {
+        return currentStatus;
+    }
+
     /**
      * 重新连接
      */
@@ -86,7 +90,7 @@ public class SocketClient {
             if (this.socketChannel != null && this.socketChannel.isConnected()) {
                 this.socketChannel.close();
                 if (this.selector != null) {
-                    this.selector.selectNow();
+//                    this.selector.selectNow();
                 }
                 this.socketChannel = null;
             }
