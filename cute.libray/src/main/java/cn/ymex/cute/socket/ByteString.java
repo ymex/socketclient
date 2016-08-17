@@ -2,7 +2,9 @@ package cn.ymex.cute.socket;
 
 import java.io.Serializable;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Created by ymexc on 2016/8/10.
@@ -223,27 +225,30 @@ public class ByteString implements Serializable, Comparable<ByteString> {
         return true;
     }
 
-    private ByteString[] split(byte[] split) {
-        if (split == null) {
-            ByteString[] bses = new ByteString[]{new ByteString(toByteArray())};
-            return bses;
-        }
-        int len = split.length;
-        ByteString[] byteStrings = new ByteString[size() % len];
-        int ri = 0;//上一次截取的位置
-        for (int i = 0; i < byteStrings.length; i++) {
-            byte[] slice = new byte[len];
-            System.arraycopy(slice, 0, internalArray(), i * len, len);
-            if (arrayRangeEquals(slice, 0, split, 0, len)) {
-                byteStrings[i] = substring(ri,i*len);
-                ri += i*len;
+
+    public List<byte[]> split(byte[] rawbyte, byte[] spit) {
+        List<byte[]> byteDatas = new ArrayList<>();
+        int currentIndex = 0;
+        for (int i = 0; i < rawbyte.length; i++) {
+            byte[] sclie = new byte[spit.length];
+            if (i > rawbyte.length - spit.length) {
+                continue;
+            }
+            System.arraycopy(rawbyte, i, sclie, 0, sclie.length);
+            if (arrayRangeEquals(rawbyte, i, spit, 0, sclie.length)) {
+                byte[] temp = new byte[i + sclie.length - currentIndex];
+                System.arraycopy(rawbyte, currentIndex, temp, 0, temp.length);
+                byteDatas.add(temp);
+                i += sclie.length - 1;
+                currentIndex = i + 1;
             }
         }
-
-        if (ri == 0) {
-           return new ByteString[]{new ByteString(toByteArray())};
+        if (currentIndex < rawbyte.length) {
+            byte[] last = new byte[rawbyte.length - currentIndex];
+            System.arraycopy(rawbyte, currentIndex, last, 0, last.length);
+            byteDatas.add(last);
         }
-        return byteStrings;
+        return byteDatas;
     }
 
 

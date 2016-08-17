@@ -2,7 +2,10 @@ package cn.ymex.cute.socket;
 
 import org.junit.Test;
 
+import java.lang.annotation.Retention;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.Assert.*;
 
@@ -39,25 +42,39 @@ public class UnitTest {
 
     @Test
     public void print() {
-        byte[] rawbyte = tobt("123886687122883");
-        byte[] spit = tobt("88");
-
-        for (int i = 0; i < rawbyte.length; i++) {
-            byte[] sclie = new byte[spit.length];
-            if (i > rawbyte.length - spit.length) {
-                return;
-            }
-            System.arraycopy(rawbyte, i, sclie, 0, sclie.length);
-            if (arrayRangeEquals(rawbyte, i, spit, 0, sclie.length)) {
-                System.out.println("----------");
-            }
-        }
+        byte[] rawbyte = tobt("780121238123121111");
+        byte[] spit = tobt("78");
+        split(rawbyte,spit);
 
     }
 
-    private void showArray(int[] datas) {
-        for (int num : datas) {
-            System.out.println(num);
+
+    public List<byte[]> split(byte[] rawbyte, byte[] spit) {
+        List<byte[]> byteDatas = new ArrayList<>();
+        int currentIndex = 0;
+        for (int i = 0; i < rawbyte.length; i++) {
+            byte[] sclie = new byte[spit.length];
+            if (i > rawbyte.length - spit.length) {
+                continue;
+            }
+            System.arraycopy(rawbyte, i, sclie, 0, sclie.length);
+            if (arrayRangeEquals(rawbyte, i, spit, 0, sclie.length)) {
+                byte[] temp = new byte[i + sclie.length - currentIndex];
+                System.arraycopy(rawbyte, currentIndex, temp, 0, temp.length);
+                byteDatas.add(temp);
+//                System.out.println(new String(temp));
+
+                i += sclie.length - 1;
+                currentIndex = i + 1;
+            }
         }
+        if (currentIndex < rawbyte.length) {
+            byte[] last = new byte[rawbyte.length - currentIndex];
+
+            System.arraycopy(rawbyte, currentIndex, last, 0, last.length);
+            byteDatas.add(last);
+//            System.out.println(new String(last));
+        }
+        return byteDatas;
     }
 }
