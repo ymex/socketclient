@@ -576,7 +576,9 @@ public class SocketClient {
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
-                    client.sendHandleMessage(Status.CONNECT_BREAK);
+                    if (client != null) {
+                        client.sendHandleMessage(Status.CONNECT_BREAK);
+                    }
                 }
             }
         }
