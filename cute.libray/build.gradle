@@ -28,7 +28,7 @@ publish {
     userOrg = 'ymex'
     groupId = 'cn.ymex'
     artifactId = 'cute.socketclient'
-    publishVersion = '0.0.5'
+    publishVersion = '0.0.6'
     desc = ' simple socket client for android'
     website = 'https://github.com/ymex/socketclient'
 }

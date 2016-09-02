@@ -10,7 +10,7 @@ A simple NIO Socket Client for Android
 ### use socketclient for android studio
 
 ```
-compile 'cn.ymex:cute.socketclient:0.0.5'
+compile 'cn.ymex:cute.socketclient:0.0.6'
 ```
 
 
