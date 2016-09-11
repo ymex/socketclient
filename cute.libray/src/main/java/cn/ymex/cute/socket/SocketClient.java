@@ -176,6 +176,7 @@ public class SocketClient {
                         sendHandleMessage(Status.CONNECT_SUCCESS);
                         break;
                     }
+                    Thread.sleep(100);
                     sendHandleMessage(Status.CONNECT_WAITING);
                 }
             } catch (Exception e) {
@@ -220,12 +221,22 @@ public class SocketClient {
          */
         public void put(PacketData data) {
             obainQueue().offer(data);
+            synchronized (this) {
+                notify();
+            }
         }
 
         @Override
         public void run() {
             while (!isStop()) {
                 if (this.obainQueue().size() <= 0) {
+                    synchronized (this) {
+                        try {
+                            wait();
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }
                     continue;
                 }
                 PacketData packetData = this.obainQueue().poll();
@@ -565,6 +576,13 @@ public class SocketClient {
                                     selector.selectNow();
                                     sk.cancel();
                                     sendHandleMessage(Status.CONNECT_BREAK);
+                                    synchronized (this) {
+                                        try {
+                                            wait();
+                                        } catch (InterruptedException e) {
+
+                                        }
+                                    }
                                     break;
                                 }
                                 buffer.clear();
@@ -623,12 +641,22 @@ public class SocketClient {
 
         public void put(byte[] datas) {
             obtainQueue().offer(datas);
+            synchronized (this) {
+                notify();
+            }
         }
 
         @Override
         public void run() {
             while (!isStop()) {
                 if (obtainQueue().size() <= 0) {
+                    synchronized (this) {
+                        try {
+                            wait();
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }
                     continue;
                 }
                 byte[] dates = obtainQueue().poll();

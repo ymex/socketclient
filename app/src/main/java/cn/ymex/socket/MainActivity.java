@@ -22,7 +22,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private Button btn_send = null;
 
 
-    public static final String HOST = "192.168.6.20";
+    public static final String HOST = "192.168.0.105";
     public static int PORT = 60000;
 
 
