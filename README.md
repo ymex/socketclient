@@ -10,7 +10,7 @@ A simple NIO Socket Client for Android
 ### use socketclient for android studio
 
 ```
-compile 'cn.ymex:cute.socketclient:0.0.6'
+compile 'cn.ymex:cute.socketclient:0.0.7'
 ```
 
 
@@ -85,5 +85,6 @@ compile 'cn.ymex:cute.socketclient:0.0.6'
 
 1。暂时不支持拆包处理[固长数据包除外]，计划中...
 2。不支持图片字节流，视频字节流的上传与下载。
+
 
 

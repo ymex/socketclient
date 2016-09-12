@@ -46,6 +46,10 @@ public class SocketClient {
      */
     public synchronized void reconnect() {
         connect(this.clientConfig);
+        setActiveBreak(false);
+        synchronized (obtainReceiveDataThread()) {
+            notify();
+        }
     }
 
     /**
@@ -119,12 +123,12 @@ public class SocketClient {
      * 若调用了些方法，socketclient 不可再重用
      */
     public synchronized void destroy() {
-        setActiveBreak(true);
-        close();
         obtainHeartbeatThread().setStop(true);
         obtionPostDataThread().setStop(true);
         obtainReceiveDataThread().setStop(true);
         obtainDealReceiveDataThread().setStop(true);
+        setActiveBreak(true);
+        close();
     }
 
     /**
@@ -176,8 +180,8 @@ public class SocketClient {
                         sendHandleMessage(Status.CONNECT_SUCCESS);
                         break;
                     }
-                    Thread.sleep(100);
                     sendHandleMessage(Status.CONNECT_WAITING);
+                    Thread.sleep(100);//空出cpu
                 }
             } catch (Exception e) {
                 sendHandleMessage(Status.CONNECT_FAILED);
@@ -545,6 +549,15 @@ public class SocketClient {
         public void run() {
             List<Byte> tempList = new ArrayList<>(clientConfig.getAllocateBuffer());
             while (!isStop()) {
+                if (SocketClient.this.isActiveBreak()) {
+                    synchronized (this) {
+                        try {
+                            wait();
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
                 try {
                     if (isNull(selector) || !selector.isOpen()) {
                         continue;

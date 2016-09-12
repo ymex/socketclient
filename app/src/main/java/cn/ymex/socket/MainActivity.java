@@ -1,6 +1,8 @@
 package cn.ymex.socket;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.widget.Button;
@@ -22,7 +24,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private Button btn_send = null;
 
 
-    public static final String HOST = "192.168.0.105";
+    public static final String HOST = "192.168.6.107";
     public static int PORT = 60000;
 
 
@@ -86,9 +88,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @Override
     public void onClick(View v) {
 
-        final String text = ed_msg.getText().toString();
-        socketClient.send(new PacketData(text.getBytes()));
-//        socketClient.disconnect();
+//        final String text = ed_msg.getText().toString();
+//        socketClient.send(new PacketData(text.getBytes()));
+        socketClient.disconnect();
+        handler.sendEmptyMessageDelayed(1,5*1000);
     }
 
     private void initView() {
@@ -103,4 +106,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         super.onDestroy();
         socketClient.destroy();
     }
+
+    private Handler handler = new Handler(){
+        @Override
+        public void handleMessage(Message msg) {
+            super.handleMessage(msg);
+            socketClient.reconnect();
+        }
+    };
 }
