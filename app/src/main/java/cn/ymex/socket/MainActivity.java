@@ -9,6 +9,9 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import java.util.Timer;
+import java.util.TimerTask;
+
 import cn.ymex.cute.log.L;
 import cn.ymex.cute.socket.ByteString;
 import cn.ymex.cute.socket.ClientConfig;
@@ -16,6 +19,7 @@ import cn.ymex.cute.socket.Listener;
 import cn.ymex.cute.socket.PacketData;
 import cn.ymex.cute.socket.ResponsePacketData;
 import cn.ymex.cute.socket.SocketClient;
+import cn.ymex.cute.socket.Status;
 
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
@@ -44,7 +48,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         config.setAllocateBuffer(512);
         // 不加心跳包，默认无心跳
         config.setHeartbeatPacketData(new PacketData(ByteString.utf8("H-E-A-R-T-B-E-A-T")));
-        config.setAutoConnectWhenBreak(true);
+//        config.setAutoConnectWhenBreak(true);
+        config.setAutoConnectWhenFailed(true);
         socketClient.connect(config);
         socketClient.setOnReceiveListener(onReceiveListener);
         socketClient.setOnConnectListener(onConnectListener);
@@ -72,6 +77,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         public void disconnect() {
             super.disconnect();
             L.d("-----disconnect-----");
+            handler.sendEmptyMessageDelayed(1,3*1000);
         }
     };
 
@@ -90,8 +96,25 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
 //        final String text = ed_msg.getText().toString();
 //        socketClient.send(new PacketData(text.getBytes()));
-        socketClient.disconnect();
-        handler.sendEmptyMessageDelayed(1,5*1000);
+          startTime();
+//        socketClient.disconnect();
+//        handler.sendEmptyMessageDelayed(1,3*1000);
+    }
+
+    Timer timer = null;
+
+    private void startTime() {
+        if (timer != null) {
+            return;
+        }
+        timer = new Timer();
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                L.d(socketClient.getCurrentStatus()== Status.CONNECT_SUCCESS?"成功":"------no connect!");
+                socketClient.disconnect();
+            }
+        },0,9*1000);
     }
 
     private void initView() {

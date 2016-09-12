@@ -47,9 +47,6 @@ public class SocketClient {
     public synchronized void reconnect() {
         connect(this.clientConfig);
         setActiveBreak(false);
-        synchronized (obtainReceiveDataThread()) {
-            notify();
-        }
     }
 
     /**
@@ -417,6 +414,9 @@ public class SocketClient {
         if (this.obtainDealReceiveDataThread().getState() == Thread.State.NEW) {
             this.obtainDealReceiveDataThread().start();
         }
+        synchronized (obtainReceiveDataThread()) {
+            obtainReceiveDataThread().notify();
+        }
         if (!isNull(this.onConnectListener)) {
             this.onConnectListener.connectSuccess(this);
         }
@@ -549,8 +549,8 @@ public class SocketClient {
         public void run() {
             List<Byte> tempList = new ArrayList<>(clientConfig.getAllocateBuffer());
             while (!isStop()) {
-                if (SocketClient.this.isActiveBreak()) {
-                    synchronized (this) {
+                if (getCurrentStatus()!= Status.CONNECT_SUCCESS) {
+                    synchronized (obtainReceiveDataThread()) {
                         try {
                             wait();
                         } catch (InterruptedException e) {
@@ -589,13 +589,6 @@ public class SocketClient {
                                     selector.selectNow();
                                     sk.cancel();
                                     sendHandleMessage(Status.CONNECT_BREAK);
-                                    synchronized (this) {
-                                        try {
-                                            wait();
-                                        } catch (InterruptedException e) {
-
-                                        }
-                                    }
                                     break;
                                 }
                                 buffer.clear();
