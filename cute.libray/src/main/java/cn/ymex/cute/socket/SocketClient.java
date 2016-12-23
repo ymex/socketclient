@@ -562,6 +562,7 @@ public class SocketClient {
                     if (isNull(selector) || !selector.isOpen()) {
                         continue;
                     }
+                    selector.wakeup();
                     while (selector.select() > 0) {
                         for (SelectionKey sk : selector.selectedKeys()) {
                             if (sk.isReadable()) {

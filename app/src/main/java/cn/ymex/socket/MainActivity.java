@@ -20,6 +20,7 @@ import cn.ymex.cute.socket.PacketData;
 import cn.ymex.cute.socket.ResponsePacketData;
 import cn.ymex.cute.socket.SocketClient;
 import cn.ymex.cute.socket.Status;
+import cn.ymex.socket.netty.NettyClientBootstrap;
 
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
@@ -31,9 +32,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     public static final String HOST = "192.168.6.111";
     public static int PORT = 60000;
 
-
-    private SocketClient socketClient;
-    ClientConfig config = null;
+    NettyClientBootstrap nettyStart=new NettyClientBootstrap();
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -41,89 +40,27 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         setContentView(R.layout.activity_main);
         initView();
 
-        socketClient = new SocketClient();
-        config = new ClientConfig(HOST, PORT);
-        config.setHeartBeatInterval(3 * 1000);
-        //一次读取的字节数
-        config.setAllocateBuffer(512);
-        // 不加心跳包，默认无心跳
-        config.setHeartbeatPacketData(new PacketData(ByteString.utf8("H-E-A-R-T-B-E-A-T")));
-//        config.setAutoConnectWhenBreak(true);
-        config.setAutoConnectWhenFailed(true);
-        socketClient.connect(config);
-        socketClient.setOnReceiveListener(onReceiveListener);
-        socketClient.setOnConnectListener(onConnectListener);
+
     }
-
-    private Listener.OnConnectListener onConnectListener = new Listener.SampleOnConnectLister() {
-
-        @Override
-        public void connectSuccess(SocketClient socketClient) {
-            L.d("----connectSuccess------");
-            socketClient.send(new PacketData(ByteString.utf8("client ----connectSuccess------")));
-        }
-
-        @Override
-        public void connectBreak() {
-            L.d("-----connectBreak-----");
-
-        }
-        @Override
-        public void connectFailed(SocketClient client) {
-            L.d("-----connectFailed-----");
-        }
-
-        @Override
-        public void disconnect() {
-            super.disconnect();
-            L.d("-----disconnect-----");
-            handler.sendEmptyMessageDelayed(1,3*1000);
-        }
-    };
-
-
-    private Listener.OnReceiveListener onReceiveListener = new Listener.OnReceiveListener() {
-        @Override
-        public void receive(ResponsePacketData result) {
-            String message = new String(result.untieData());
-            tv_msg.setText(message);
-        }
-    };
 
 
     @Override
     public void onClick(View v) {
+        try {
+            nettyStart.startNetty();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
-//        final String text = ed_msg.getText().toString();
-//        socketClient.send(new PacketData(text.getBytes()));
-          startTime();
-        socketClient.disconnect();
-        handler.sendEmptyMessageDelayed(1,3*1000);
     }
 
-    private Handler handler = new Handler(){
+    private Handler handler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
             super.handleMessage(msg);
-            socketClient.reconnect();
         }
     };
 
-    Timer timer = null;
-
-    private void startTime() {
-        if (timer != null) {
-            return;
-        }
-        timer = new Timer();
-        timer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                L.d(socketClient.getCurrentStatus()== Status.CONNECT_SUCCESS?"成功":"------no connect!");
-                socketClient.reconnect();
-            }
-        },0,2000);
-    }
 
     private void initView() {
         tv_msg = (TextView) findViewById(R.id.tv_text);
@@ -135,7 +72,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        socketClient.destroy();
     }
 
 
