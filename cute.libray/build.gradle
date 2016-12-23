@@ -23,6 +23,7 @@ dependencies {
     testCompile 'junit:junit:4.12'
     compile 'com.android.support:appcompat-v7:24.0.0'
     compile 'cn.ymex:cute.L:0.6.0'
+    compile files('libs/netty_4.1.6.final.jar')
 }
 publish {
     userOrg = 'ymex'

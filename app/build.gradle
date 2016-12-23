@@ -25,5 +25,5 @@ dependencies {
     compile 'com.android.support:appcompat-v7:24.0.0'
     compile project(':cute.libray')
     compile 'cn.ymex:cute.L:0.6.0'
-    compile files('libs/netty_4.1.6.final.jar')
+
 }

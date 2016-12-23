@@ -9,18 +9,10 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
-import java.util.Timer;
-import java.util.TimerTask;
-
-import cn.ymex.cute.log.L;
-import cn.ymex.cute.socket.ByteString;
-import cn.ymex.cute.socket.ClientConfig;
-import cn.ymex.cute.socket.Listener;
-import cn.ymex.cute.socket.PacketData;
-import cn.ymex.cute.socket.ResponsePacketData;
-import cn.ymex.cute.socket.SocketClient;
-import cn.ymex.cute.socket.Status;
-import cn.ymex.socket.netty.NettyClientBootstrap;
+import cn.ymex.cute.socket.netty.DroidSocketClient;
+import cn.ymex.cute.socket.netty.SocketListener;
+import io.netty.buffer.ByteBuf;
+import io.netty.util.CharsetUtil;
 
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
@@ -29,30 +21,35 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private Button btn_send = null;
 
 
-    public static final String HOST = "192.168.6.111";
+    public static final String HOST = "192.168.0.106";
     public static int PORT = 60000;
+    DroidSocketClient client = DroidSocketClient.getInstance();
 
-    NettyClientBootstrap nettyStart=new NettyClientBootstrap();
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         initView();
-
-
+        System.out.println("uiid:"+Thread.currentThread().getId());
+        client.registerDataReceiveListener(new SocketListener.OnDataReceiveListener() {
+            @Override
+            public void onDataReceive(ByteBuf baseMsg) {
+                System.out.println("mainaction thread "+Thread.currentThread().getId()+" :: "+baseMsg.toString(CharsetUtil.UTF_8).trim());
+            }
+        });
+        client.connect(HOST, PORT);
     }
 
 
     @Override
     public void onClick(View v) {
-        try {
-            nettyStart.startNetty();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        String message = ed_msg.getText().toString();
+        client.post(message);
 
     }
+
+
 
     private Handler handler = new Handler() {
         @Override

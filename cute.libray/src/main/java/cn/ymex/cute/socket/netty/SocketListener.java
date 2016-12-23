@@ -1,4 +1,6 @@
-package cn.ymex.socket.netty;
+package cn.ymex.cute.socket.netty;
+
+import io.netty.buffer.ByteBuf;
 
 /**
  * Copyright (c) ymexc(www.ymex.cn)
@@ -12,7 +14,7 @@ public class SocketListener {
      * 数据接收监听
      */
     public interface OnDataReceiveListener {
-        void onDataReceive();
+        void onDataReceive(ByteBuf baseMsg);
     }
 
     /**
@@ -20,7 +22,9 @@ public class SocketListener {
      */
     public interface OnConnectStatusListener {
         void onConnected();
+
         void onDisconnected();
+
         void onConnectFailed();
     }
 }
