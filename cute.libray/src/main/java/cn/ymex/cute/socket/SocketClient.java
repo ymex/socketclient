@@ -55,12 +55,12 @@ public class SocketClient {
      * @param config
      */
     public synchronized void connect(ClientConfig config) {
-        this.sendHandleMessage(Status.CONNECT_PREPARE);
         if (this.currentStatus == Status.CONNECT_SUCCESS
                 || this.currentStatus == Status.CONNECT_WAITING) {
             L.w("socket is already runing...");
             return;
         }
+        this.sendHandleMessage(Status.CONNECT_PREPARE);
         checkNull(config, "socket config is null");
         this.clientConfig = config;
         this.sendHandleMessage(Status.CONNECT_WAITING);
@@ -86,16 +86,15 @@ public class SocketClient {
      */
     private synchronized void close() {
         try {
+            if (this.socketChannel != null ) {
 
-            if (this.socketChannel != null && this.socketChannel.isConnected()) {
+
                 this.socketChannel.close();
-                if (this.selector != null) {
-//                    this.selector.selectNow();
-                }
                 this.socketChannel = null;
             }
 
-            if (this.selector != null && this.selector.isOpen()) {
+            if (this.selector != null) {
+                this.selector.wakeup();
                 this.selector.close();
                 this.selector = null;
             }
@@ -165,6 +164,7 @@ public class SocketClient {
         @Override
         public void run() {
             try {
+                sendHandleMessage(Status.CONNECT_WAITING);
                 socketChannel = _connect(
                         clientConfig.getHost(),
                         clientConfig.getPort(),

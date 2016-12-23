@@ -28,7 +28,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private Button btn_send = null;
 
 
-    public static final String HOST = "192.168.6.107";
+    public static final String HOST = "192.168.6.111";
     public static int PORT = 60000;
 
 
@@ -97,9 +97,17 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 //        final String text = ed_msg.getText().toString();
 //        socketClient.send(new PacketData(text.getBytes()));
           startTime();
-//        socketClient.disconnect();
-//        handler.sendEmptyMessageDelayed(1,3*1000);
+        socketClient.disconnect();
+        handler.sendEmptyMessageDelayed(1,3*1000);
     }
+
+    private Handler handler = new Handler(){
+        @Override
+        public void handleMessage(Message msg) {
+            super.handleMessage(msg);
+            socketClient.reconnect();
+        }
+    };
 
     Timer timer = null;
 
@@ -112,9 +120,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             @Override
             public void run() {
                 L.d(socketClient.getCurrentStatus()== Status.CONNECT_SUCCESS?"成功":"------no connect!");
-                socketClient.disconnect();
+                socketClient.reconnect();
             }
-        },0,9*1000);
+        },0,2000);
     }
 
     private void initView() {
@@ -130,11 +138,5 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         socketClient.destroy();
     }
 
-    private Handler handler = new Handler(){
-        @Override
-        public void handleMessage(Message msg) {
-            super.handleMessage(msg);
-            socketClient.reconnect();
-        }
-    };
+
 }
