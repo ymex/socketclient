@@ -41,6 +41,7 @@ public class DroidSocketClient {
     private final int MESSAGE_INIT = 0x66;
     private final int MESSAGE_CONNECT = 0x67;
     private final int MESSAGE_SEND = 0x68;
+    private final int MESSAGE_RE_CONNECT = 0x69;
 
     private final int MIN_CLICK_DELAY_TIME = 1000 * 30; //设置心跳时间  开始
 
@@ -49,7 +50,9 @@ public class DroidSocketClient {
     private int port;
 
     private Bootstrap bootstrap;
-    public SocketChannel socketChannel;
+    private SocketChannel socketChannel;
+
+
     private ClinetAdapterHandler clientAdapterHandler;
     private IdleStateHandler idleStateHandler;
 
@@ -69,7 +72,10 @@ public class DroidSocketClient {
                 case MESSAGE_CONNECT://连接
                     _connect();
                     break;
-
+                case MESSAGE_RE_CONNECT:
+                    //socketChannel.pipeline().remove(channelInitializer);
+                    _connect();
+                    break;
                 case MESSAGE_SEND://发送消息
                     _post(msg);
                     break;
@@ -108,12 +114,19 @@ public class DroidSocketClient {
      * 初始化 client
      */
     private void _init() {
-        EventLoopGroup eventLoopGroup = new NioEventLoopGroup();
+        NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup();
         bootstrap = new Bootstrap();
         bootstrap.channel(NioSocketChannel.class);
         bootstrap.option(ChannelOption.SO_KEEPALIVE, true);
         bootstrap.group(eventLoopGroup);
-        bootstrap.handler(new ChannelInitializer<SocketChannel>() {
+        _initHandler();
+    }
+
+
+    private ChannelInitializer channelInitializer;
+
+    private void _initHandler() {
+        channelInitializer = new ChannelInitializer<SocketChannel>() {
             @Override
             protected void initChannel(SocketChannel socketChannel) throws Exception {
                 ChannelPipeline pipeline = socketChannel.pipeline();
@@ -123,7 +136,8 @@ public class DroidSocketClient {
                 //pipeline.addLast(new ObjectEncoder());//数据编码
                 //pipeline.addLast(new ObjectDecoder(ClassResolvers.cacheDisabled(null)));//数据解码解密
             }
-        });
+        };
+        bootstrap.handler(channelInitializer);
     }
 
     /**
@@ -137,23 +151,34 @@ public class DroidSocketClient {
     }
 
     /**
-     * 重新连接
+     * 重新连接 3秒后重连
      */
     public void reconnect() {
-
+        getInstance().init();
+        mWorkHandler.sendEmptyMessage(MESSAGE_CONNECT);
     }
 
     /**
      * 断开连接
      */
     public void disconnect() {
-
+       socketChannel.disconnect();
     }
 
     /**
      * 销毁
      */
     public void destroy() {
+        if (socketChannel != null) {
+            socketChannel.pipeline().remove(clientAdapterHandler);
+            socketChannel.disconnect();
+            socketChannel.close();
+        }
+        mWorkHandler.removeCallbacks(mWorkThread);
+        mWorkHandlerCallback = null;
+        bootstrap = null;
+        clientAdapterHandler = null;
+        idleStateHandler = null;
 
     }
 
@@ -369,7 +394,6 @@ public class DroidSocketClient {
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             super.exceptionCaught(ctx, cause);
-            TimeUnit.SECONDS.sleep(10);
             cause.printStackTrace();
         }
     }

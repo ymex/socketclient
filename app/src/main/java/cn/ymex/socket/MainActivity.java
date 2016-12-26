@@ -21,7 +21,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private Button btn_send = null;
 
 
-    public static final String HOST = "192.168.0.106";
+    public static final String HOST = "192.168.6.112";
     public static int PORT = 60000;
     DroidSocketClient client = DroidSocketClient.getInstance();
 
@@ -31,11 +31,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         initView();
-        System.out.println("uiid:"+Thread.currentThread().getId());
+        System.out.println("uiid:" + Thread.currentThread().getId());
         client.registerDataReceiveListener(new SocketListener.OnDataReceiveListener() {
             @Override
             public void onDataReceive(ByteBuf baseMsg) {
-                System.out.println("mainaction thread "+Thread.currentThread().getId()+" :: "+baseMsg.toString(CharsetUtil.UTF_8).trim());
+                System.out.println("mainaction thread " + Thread.currentThread().getId() + " :: " + baseMsg.toString(CharsetUtil.UTF_8).trim());
             }
         });
         client.connect(HOST, PORT);
@@ -44,17 +44,19 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     @Override
     public void onClick(View v) {
-        String message = ed_msg.getText().toString();
-        client.post(message);
+//        String message = ed_msg.getText().toString();
+//        client.post(message);
+        client.disconnect();
+        handler.sendEmptyMessageDelayed(1, 3 * 1000);
 
     }
-
 
 
     private Handler handler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
             super.handleMessage(msg);
+            client.reconnect();
         }
     };
 
