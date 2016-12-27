@@ -41,21 +41,33 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         client.connect(HOST, PORT);
     }
 
+    private long TIME_TAG = 15 * 1000;
 
     @Override
     public void onClick(View v) {
 //        String message = ed_msg.getText().toString();
 //        client.post(message);
-        client.disconnect();
-        handler.sendEmptyMessageDelayed(1, 3 * 1000);
+
+        handler.sendEmptyMessageDelayed(MESSAGE_DIS_CONNECT, TIME_TAG);
 
     }
 
 
+    private final static int MESSAGE_CONNECT = 1;
+    private final static int MESSAGE_DIS_CONNECT = 2;
     private Handler handler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
             super.handleMessage(msg);
+            switch (msg.what) {
+                case MESSAGE_CONNECT:
+                    client.reconnect();
+                    break;
+                case MESSAGE_DIS_CONNECT:
+                    client.disconnect();
+                    this.sendEmptyMessageDelayed(MESSAGE_CONNECT, TIME_TAG);
+                    break;
+            }
             client.reconnect();
         }
     };

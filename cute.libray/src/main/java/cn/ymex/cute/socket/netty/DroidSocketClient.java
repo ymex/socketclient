@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import cn.ymex.cute.socket.Status;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -37,14 +38,14 @@ import io.netty.util.ReferenceCountUtil;
  */
 public class DroidSocketClient {
     private static DroidSocketClient socketClient;
+    private int currentStatus = Status.CONNECT_PREPARE;//当前状态
 
-    private final int MESSAGE_INIT = 0x66;
-    private final int MESSAGE_CONNECT = 0x67;
-    private final int MESSAGE_SEND = 0x68;
-    private final int MESSAGE_RE_CONNECT = 0x69;
+    private final int MESSAGE_INIT = 0x66; //初始化
+    private final int MESSAGE_CONNECT = 0x67;//连接
+    private final int MESSAGE_SEND = 0x68;  //发送消息
+    private final int MESSAGE_DIS_CONNECT = 0x88; //断开连接
 
     private final int MIN_CLICK_DELAY_TIME = 1000 * 30; //设置心跳时间  开始
-
 
     private String host;
     private int port;
@@ -61,6 +62,7 @@ public class DroidSocketClient {
 
     private HandlerThread mWorkThread = null;
     private Handler mWorkHandler = null;
+
     private Handler.Callback mWorkHandlerCallback = new Handler.Callback() {
         @Override
         public boolean handleMessage(Message msg) {
@@ -72,12 +74,11 @@ public class DroidSocketClient {
                 case MESSAGE_CONNECT://连接
                     _connect();
                     break;
-                case MESSAGE_RE_CONNECT:
-                    //socketChannel.pipeline().remove(channelInitializer);
-                    _connect();
-                    break;
                 case MESSAGE_SEND://发送消息
                     _post(msg);
+                    break;
+                case MESSAGE_DIS_CONNECT:
+                    _disconnect();
                     break;
             }
 
@@ -151,20 +152,31 @@ public class DroidSocketClient {
     }
 
     /**
-     * 重新连接 3秒后重连
+     * 重新连接
      */
     public void reconnect() {
         getInstance().init();
         mWorkHandler.sendEmptyMessage(MESSAGE_CONNECT);
     }
 
+
     /**
      * 断开连接
      */
     public void disconnect() {
-       socketChannel.disconnect();
+       mWorkHandler.sendEmptyMessage(MESSAGE_DIS_CONNECT);
     }
 
+    public void _disconnect() {
+        try {
+            ChannelFuture future = socketChannel.disconnect().sync();
+            if (future.isSuccess()) {
+                setCurrentStatus(Status.DIS_CONNECT);
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
     /**
      * 销毁
      */
@@ -284,6 +296,14 @@ public class DroidSocketClient {
         System.out.println("连接失败");
     }
 
+
+    public int getCurrentStatus() {
+        return currentStatus;
+    }
+
+    private void setCurrentStatus(int currentStatus) {
+        this.currentStatus = currentStatus;
+    }
 
     public void setOnConnectStatusListener(SocketListener.OnConnectStatusListener onConnectStatusListener) {
         this.onConnectStatusListener = onConnectStatusListener;
